@@ -97,7 +97,7 @@
         sans-serif;
 
       font-weight: 800;
-      font-size: clamp(38px, 11vw, 52px);
+      font-size: clamp(28px, 7.6vw, 36px);
       line-height: 1;
 
       letter-spacing: -2px;
@@ -540,8 +540,12 @@
       let mode='contained';
 
       if(viewportLayouts.isMobile){
-        if(game.screen==='stageSelect'){
-          // Stage Select는 가로폭을 꽉 채운다.
+        if(
+          game.screen==='stageSelect' ||
+          game.screen==='worldSelect'
+        ){
+          // Stage Select와 World Tour 모두
+          // 모바일 가로폭을 빈 공간 없이 꽉 채운다.
           mode='uiFill';
         }else if(worldScreen){
           mode='gameplay';
@@ -797,7 +801,81 @@
       if(environmentCandidates.length){if(template.objects.some(item=>item.type===environmentType))worldState.environmentMisses=0;else worldState.environmentMisses++;}
       worldState.lastTemplateId=template.id;return template;
     }
-    function instantiateInfiniteSegment(template,bottomY,forcedHeight=null){const segmentId=`g${++worldState.segmentSerial}`,height=forcedHeight||randomRange(template.height[0],template.height[1]),topY=bottomY-height;worldState.segments.push({id:segmentId,kind:template.kind,templateId:template.id,topY,bottomY});for(const spec of template.objects)createWorldObject({...spec,y:bottomY-spec.up*height},segmentId);for(const shard of template.shards)createShard({x:shard.x*WORLD.width,y:bottomY-shard.up*height},segmentId);worldState.generatedTopY=topY;}
+    function instantiateInfiniteSegment(
+      template,
+      bottomY,
+      forcedHeight=null
+    ){
+      const segmentId=
+        `g${++worldState.segmentSerial}`;
+
+      const height=
+        forcedHeight||
+        randomRange(
+          template.height[0],
+          template.height[1]
+        );
+
+      const topY=
+        bottomY-height;
+
+
+      worldState.segments.push({
+        id:segmentId,
+        kind:template.kind,
+        templateId:template.id,
+        topY,
+        bottomY
+      });
+
+
+      for(const spec of template.objects){
+
+        /*
+          Infinite 구형 hazard asset 제거.
+
+          HAZARD 템플릿의 난이도/배치는 유지하면서
+          실제 오브젝트는 최신 deathwall로 통일.
+        */
+        const modernType=
+          spec.type==='hazard'
+            ?'deathwall'
+            :spec.type;
+
+        createWorldObject(
+          {
+            ...spec,
+            type:modernType,
+            y:
+              bottomY-
+              spec.up*height
+          },
+          segmentId
+        );
+      }
+
+
+      for(const shard of template.shards){
+
+        createShard(
+          {
+            x:
+              shard.x*
+              WORLD.width,
+
+            y:
+              bottomY-
+              shard.up*height
+          },
+          segmentId
+        );
+      }
+
+
+      worldState.generatedTopY=
+        topY;
+    }
+
     function setupInfiniteWorld(){instantiateInfiniteSegment(VALID_INFINITE_TEMPLATES.find(item=>item.id==='open'),700,700);ensureInfiniteSegments();}
     function ensureInfiniteSegments(){
       if(game.gameMode!=='infinite')return;const limit=camera.y-WORLD.height*CAMERA_RULES.generationAhead,phase=getInfinitePhase();while(worldState.generatedTopY>limit)instantiateInfiniteSegment(pickInfiniteTemplate(game.score,game.altitude,phase),worldState.generatedTopY);
@@ -1238,9 +1316,72 @@
 
       ctx.restore();
     }
-    function drawWall(object,sy){drawLineStructure(object,sy,'wall');}
+    function isSolidBlockWall(object){
+      /*
+        물리 충돌 영역에 실제 부피가 있는 벽인지 판단.
+
+        일반 플랫폼은 보통 두께 15~22.
+        짧은 변이 30px 이상이면
+        단순 선이 아니라 블록으로 표시한다.
+      */
+      return Math.min(
+        object.w,
+        object.h
+      )>=30;
+    }
+
+
+    function drawSolidBlockWall(object,sy){
+      ctx.save();
+
+      /*
+        사용자가 보는 모양과
+        실제 충돌 박스를 정확히 일치시킨다.
+      */
+      ctx.fillStyle='#FFFFFF';
+
+      ctx.fillRect(
+        object.x,
+        sy,
+        object.w,
+        object.h
+      );
+
+      ctx.restore();
+    }
+
+
+    function drawWall(object,sy){
+
+      if(isSolidBlockWall(object)){
+        drawSolidBlockWall(
+          object,
+          sy
+        );
+
+        return;
+      }
+
+      drawLineStructure(
+        object,
+        sy,
+        'wall'
+      );
+    }
     function drawDeathWall(object,sy){drawLineStructure(object,sy,'dead');}
-    function drawHazard(object,sy){ctx.fillStyle=COLORS.dangerDark;ctx.fillRect(object.x,sy+object.h*.45,object.w,object.h*.55);const spikeWidth=16;ctx.fillStyle=COLORS.danger;for(let x=object.x;x<object.x+object.w-2;x+=spikeWidth){const end=Math.min(x+spikeWidth,object.x+object.w);ctx.beginPath();ctx.moveTo(x,sy+object.h*.58);ctx.lineTo((x+end)/2,sy);ctx.lineTo(end,sy+object.h*.58);ctx.closePath();ctx.fill();}}
+    function drawHazard(object,sy){
+      /*
+        구형 spike/hazard 그래픽은 더 이상 사용하지 않는다.
+
+        기존 hazard 데이터가 남아 있더라도
+        최신 빨간 death-wall 스타일로 렌더링.
+      */
+      drawDeathWall(
+        object,
+        sy
+      );
+    }
+
     function drawSatellite(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2,panelW=object.w*.34,panelH=object.h*.5,bodyW=Math.max(24,object.w*.23),bodyH=object.h*.7;ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#4e6b84';ctx.strokeStyle='rgba(191,223,242,.58)';ctx.lineWidth=1;ctx.fillRect(-object.w/2,-panelH/2,panelW,panelH);ctx.fillRect(object.w/2-panelW,-panelH/2,panelW,panelH);for(const side of[-1,1])for(let i=0;i<3;i++){const left=side<0?-object.w/2:object.w/2-panelW,x=left+4+i*(panelW-8)/3;ctx.strokeRect(x,-panelH/2+2,(panelW-10)/3,panelH-4);}drawRoundedRect(-bodyW/2,-bodyH/2,bodyW,bodyH,4,COLORS.dangerDark,'rgba(255,190,175,.78)',1);ctx.fillStyle=COLORS.danger;ctx.beginPath();ctx.arc(0,0,3.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#aab9c5';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(2,-bodyH/2);ctx.lineTo(7,-object.h/2-5);ctx.stroke();ctx.beginPath();ctx.arc(8,-object.h/2-7,2.5,0,Math.PI*2);ctx.stroke();ctx.restore();}
     function drawMeteor(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2,radius=object.radius||Math.max(object.w,object.h)/2,vx=object.renderVX||object.velocityX||object.driftSpeed||0,vy=object.renderVY||object.velocityY||object.fallSpeed||1,speed=Math.hypot(vx,vy)||1,nx=vx/speed,ny=vy/speed;ctx.save();for(let index=4;index>=1;index--){const distance=radius+index*(radius*.72),dotRadius=lerp(1.5,4.2,(5-index)/4);ctx.globalAlpha=.1+(5-index)*.09;ctx.fillStyle=index%2?COLORS.danger:'#f4a16f';ctx.beginPath();ctx.arc(cx-nx*distance,cy-ny*distance,dotRadius,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.fillStyle='#28313b';ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#e36a5f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,radius-1.5,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#f2a069';ctx.beginPath();ctx.arc(cx+radius*.22,cy-radius*.18,Math.max(2.2,radius*.22),0,Math.PI*2);ctx.fill();ctx.restore();}
     function drawMeteorWarning(object,sy){const proximity=1-clamp((-sy-54)/116,0,1),x=clamp(object.x+object.w/2,18,WORLD.width-18);ctx.save();ctx.globalAlpha=.22+proximity*.48;ctx.strokeStyle=COLORS.danger;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x-7,7);ctx.lineTo(x,14);ctx.lineTo(x+7,7);ctx.stroke();ctx.fillStyle='rgba(255,117,95,.2)';ctx.beginPath();ctx.arc(x,5,3+proximity*2,0,Math.PI*2);ctx.fill();ctx.restore();}
@@ -1249,7 +1390,7 @@
     function drawBoost(object,sy){const scaleY=boostScale(object);ctx.save();ctx.translate(0,sy+object.h);ctx.scale(1,scaleY);ctx.translate(0,-(sy+object.h));ctx.globalAlpha=object.used?.38:1;drawLineStructure(object,sy,'jump');ctx.restore();}
     function drawMovementGuide(object){if(!object.movement)return;const centerX=object.baseX+object.w/2,centerY=worldToScreenY(object.baseY+object.h/2),distance=object.movement.distance;ctx.save();ctx.strokeStyle='rgba(215,229,238,.13)';ctx.lineWidth=1;ctx.setLineDash([3,6]);ctx.beginPath();if(object.movement.axis==='x'){ctx.moveTo(centerX-distance,centerY);ctx.lineTo(centerX+distance,centerY);}else{ctx.moveTo(centerX,centerY-distance);ctx.lineTo(centerX,centerY+distance);}ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(215,229,238,.2)';for(const direction of[-1,1]){const x=object.movement.axis==='x'?centerX+direction*distance:centerX,y=object.movement.axis==='y'?centerY+direction*distance:centerY;ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();}ctx.restore();}
     function drawWormhole(wormhole){const sy=worldToScreenY(wormhole.y);if(sy+wormhole.radius<-35||sy-wormhole.radius>WORLD.height+35)return;const angle=game.elapsed*.72+(wormhole.pairId.charCodeAt(0)%5)*.4;ctx.save();ctx.translate(wormhole.x,sy);ctx.strokeStyle=colorWithAlpha(wormhole.color,.26);ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,wormhole.radius,0,Math.PI*2);ctx.stroke();ctx.strokeStyle=colorWithAlpha(wormhole.color,.9);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,wormhole.radius-3,0,Math.PI*2);ctx.stroke();for(let i=0;i<3;i++){ctx.save();ctx.rotate(angle+i*2.1);ctx.strokeStyle=colorWithAlpha(wormhole.color,.72-i*.13);ctx.lineWidth=2.2-i*.35;ctx.beginPath();ctx.arc(0,0,wormhole.radius-8-i*4,-.65,.72);ctx.stroke();ctx.restore();}ctx.fillStyle=colorWithAlpha(wormhole.color,.13);ctx.beginPath();ctx.arc(0,0,wormhole.radius-9,0,Math.PI*2);ctx.fill();ctx.rotate(wormhole.orientation);ctx.strokeStyle=colorWithAlpha(wormhole.color,.76);ctx.lineWidth=1.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(wormhole.radius-6,0);ctx.lineTo(wormhole.radius+5,0);ctx.moveTo(wormhole.radius+1,-4);ctx.lineTo(wormhole.radius+5,0);ctx.lineTo(wormhole.radius+1,4);ctx.stroke();ctx.restore();}
-    function drawStructures(){canvas.setAttribute('data-wall-visual','thick-player-line');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
+    function drawStructures(){canvas.setAttribute('data-wall-visual','flat-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
     function shardDiamondPath(radius){ctx.beginPath();ctx.moveTo(0,-radius);ctx.lineTo(radius*.72,0);ctx.lineTo(0,radius);ctx.lineTo(-radius*.72,0);ctx.closePath();}
     function drawShards(){
       canvas.setAttribute(
@@ -1320,8 +1461,186 @@
     function drawHomeSettingsIcon(cx,cy){ctx.save();ctx.translate(cx,cy);ctx.strokeStyle='rgba(255,255,255,.94)';ctx.lineWidth=1.7;ctx.lineCap='round';for(const[y,knob]of[[-6,3],[0,-4],[6,5]]){ctx.beginPath();ctx.moveTo(-8,y);ctx.lineTo(8,y);ctx.stroke();ctx.beginPath();ctx.arc(knob,y,1.8,0,Math.PI*2);ctx.fillStyle='#FFFFFF';ctx.fill();}ctx.restore();}
     function earnedWorldStars(){return Object.values(progress.stars).reduce((total,value)=>total+clamp(Number(value)||0,0,3),0);}
     function drawHomeTopBar(alpha,interactive=true){ctx.save();ctx.globalAlpha=alpha;drawRoundedRect(18,24,112,34,17,'rgba(255,255,255,.15)','rgba(255,255,255,.28)',1);ctx.fillStyle='#F5D77E';drawStarPath(35,41,6);ctx.fill();ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#FFFFFF';ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(`${earnedWorldStars()} / 300`,48,42);drawRoundedRect(332,22,40,40,20,'rgba(255,255,255,.11)','rgba(255,255,255,.3)',1);drawHomeSettingsIcon(352,42);if(interactive)registerHitArea(328,18,48,48,'settings');ctx.restore();}
-    function homeLogoMetrics(){const y=HOME_LAYOUT.logoY,gap=4;ctx.save();ctx.font='800 39px ui-sans-serif, sans-serif';const leftWidth=ctx.measureText('B').width,rightWidth=ctx.measureText('UNCER').width,totalWidth=leftWidth+gap+ball.radius*2+gap+rightWidth,startX=(WORLD.width-totalWidth)/2,ballX=startX+leftWidth+gap+ball.radius;ctx.restore();return{y,gap,leftWidth,rightWidth,startX,ballX};}
-    function drawHomeLogo(alpha,includeBall=true){const layout=homeLogoMetrics();if(game.screen==='menu'&&game.phase==='homeIdle'){ball.x=layout.ballX;ball.y=layout.y+1;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;}ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle='#FFFFFF';ctx.textAlign='left';ctx.textBaseline='middle';ctx.font='800 39px ui-sans-serif, sans-serif';ctx.fillText('B',layout.startX,layout.y);ctx.fillText('UNCER',layout.ballX+ball.radius+layout.gap,layout.y);for(let i=0;i<5;i++){const radius=2.5-i*.34,pointY=layout.y-22-i*8;ctx.globalAlpha=alpha*(.62-i*.1);ctx.beginPath();ctx.arc(layout.ballX,pointY,radius,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=alpha*.76;ctx.textAlign='center';ctx.font='650 8.5px ui-sans-serif, sans-serif';ctx.fillText('RISE ABOVE, BOUNCE HIGHER',WORLD.width/2,246);ctx.globalAlpha=alpha*.7;ctx.font='720 11px ui-sans-serif, sans-serif';ctx.fillText(`BEST ${game.best}`,WORLD.width/2,273);ctx.restore();if(includeBall){ctx.save();ctx.globalAlpha=alpha;drawBall('#FFFFFF');ctx.restore();}}
+    function homeLogoFontSize(){
+      /*
+        실제 보이는 논리 화면 폭에 따라 로고 크기 조절.
+
+        일반적인 폰:
+        약 31~33px
+
+        아주 좁거나 세로가 긴 폰에서도
+        너무 크게 보이지 않도록 28~34px 제한.
+      */
+      return clamp(
+        viewport.visibleLogicalWidth*.085,
+        28,
+        34
+      );
+    }
+
+    function homeLogoMetrics(){
+      const y=HOME_LAYOUT.logoY;
+      const gap=3.5;
+      const fontSize=homeLogoFontSize();
+
+      ctx.save();
+
+      ctx.font=
+        `800 ${fontSize}px ui-sans-serif, sans-serif`;
+
+      const leftWidth=
+        ctx.measureText('B').width;
+
+      const rightWidth=
+        ctx.measureText('UNCER').width;
+
+      const totalWidth=
+        leftWidth+
+        gap+
+        ball.radius*2+
+        gap+
+        rightWidth;
+
+      const startX=
+        (WORLD.width-totalWidth)/2;
+
+      const ballX=
+        startX+
+        leftWidth+
+        gap+
+        ball.radius;
+
+      ctx.restore();
+
+      return{
+        y,
+        gap,
+        fontSize,
+        leftWidth,
+        rightWidth,
+        startX,
+        ballX
+      };
+    }
+
+    function drawHomeLogo(alpha,includeBall=true){
+      const layout=
+        homeLogoMetrics();
+
+      if(
+        game.screen==='menu' &&
+        game.phase==='homeIdle'
+      ){
+        ball.x=layout.ballX;
+        ball.y=layout.y+1;
+
+        ball.previousX=ball.x;
+        ball.previousY=ball.y;
+
+        ball.vx=0;
+        ball.vy=0;
+      }
+
+      ctx.save();
+
+      ctx.globalAlpha=alpha;
+
+      ctx.fillStyle='#FFFFFF';
+
+      ctx.textAlign='left';
+      ctx.textBaseline='middle';
+
+      ctx.font=
+        `800 ${layout.fontSize}px ui-sans-serif, sans-serif`;
+
+      ctx.fillText(
+        'B',
+        layout.startX,
+        layout.y
+      );
+
+      ctx.fillText(
+        'UNCER',
+        layout.ballX+
+        ball.radius+
+        layout.gap,
+        layout.y
+      );
+
+
+      /*
+        위의 작은 점들도
+        로고 크기에 맞춰 같이 축소.
+      */
+      const logoScale=
+        layout.fontSize/39;
+
+      for(let i=0;i<5;i++){
+
+        const radius=
+          (2.5-i*.34)*
+          logoScale;
+
+        const pointY=
+          layout.y-
+          22*logoScale-
+          i*7.2*logoScale;
+
+        ctx.globalAlpha=
+          alpha*(.62-i*.1);
+
+        ctx.beginPath();
+
+        ctx.arc(
+          layout.ballX,
+          pointY,
+          radius,
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+      }
+
+
+      ctx.globalAlpha=
+        alpha*.76;
+
+      ctx.textAlign='center';
+
+      ctx.font=
+        '650 8px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        'RISE ABOVE, BOUNCE HIGHER',
+        WORLD.width/2,
+        244
+      );
+
+
+      ctx.globalAlpha=
+        alpha*.7;
+
+      ctx.font=
+        '720 10px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        `BEST ${game.best}`,
+        WORLD.width/2,
+        269
+      );
+
+      ctx.restore();
+
+
+      if(includeBall){
+        ctx.save();
+        ctx.globalAlpha=alpha;
+        drawBall('#FFFFFF');
+        ctx.restore();
+      }
+    }
+
     function homeNavigationY(){return Math.min(HOME_LAYOUT.navY,viewport.visibleLogicalHeight-42);}
     function drawHomeBottomNav(alpha,interactive=true){const items=[{label:'WORLD TOUR',icon:'globe',action:'worldTour'},{label:'SKINS',icon:'skins',action:'skin'},{label:'ACHIEVEMENTS',icon:'trophy',action:'achievements'}],centers=[70,195,320],y=homeNavigationY();items.forEach((item,index)=>{const cx=centers[index],hovered=input.hoverAction===item.action;ctx.save();ctx.globalAlpha=alpha*(hovered?1:.82);drawHomeIcon(item.icon,cx,y-18,21);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#3E5874';ctx.font='680 7.5px ui-sans-serif, sans-serif';ctx.fillText(item.label,cx,y+9);ctx.restore();if(interactive)registerHitArea(cx-49,y-46,98,68,item.action);});}
     function drawMainMenu(){drawMenuBackdrop();const elapsed=Math.max(0,game.uiTime-game.menuEnteredAt),logoAlpha=smoothstep(elapsed/.34),topAlpha=smoothstep(elapsed/.28);drawHomeTopBar(topAlpha,true);drawHomeLogo(logoAlpha,true);drawHomeBottomNav(smoothstep((elapsed-.12)/.3),true);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);canvas.setAttribute('data-home-menu-count','3');canvas.setAttribute('data-home-menu-style','bottom-navigation');canvas.setAttribute('data-home-prompt','removed');canvas.setAttribute('data-home-gradient-layer','css-only');}
