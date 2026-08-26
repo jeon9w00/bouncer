@@ -97,7 +97,7 @@
         sans-serif;
 
       font-weight: 800;
-      font-size: clamp(28px, 7.6vw, 36px);
+      font-size: clamp(14px, 3.8vw, 18px);
       line-height: 1;
 
       letter-spacing: -2px;
@@ -1472,9 +1472,9 @@
         너무 크게 보이지 않도록 28~34px 제한.
       */
       return clamp(
-        viewport.visibleLogicalWidth*.085,
-        28,
-        34
+        viewport.visibleLogicalWidth*.043,
+        14,
+        17
       );
     }
 
@@ -1494,10 +1494,12 @@
       const rightWidth=
         ctx.measureText('UNCER').width;
 
+      const visualBallRadius=ball.radius*.52;
+
       const totalWidth=
         leftWidth+
         gap+
-        ball.radius*2+
+        visualBallRadius*2+
         gap+
         rightWidth;
 
@@ -1508,7 +1510,7 @@
         startX+
         leftWidth+
         gap+
-        ball.radius;
+        visualBallRadius;
 
       ctx.restore();
 
@@ -1562,7 +1564,7 @@
       ctx.fillText(
         'UNCER',
         layout.ballX+
-        ball.radius+
+        ball.radius*.52+
         layout.gap,
         layout.y
       );
@@ -1636,7 +1638,14 @@
       if(includeBall){
         ctx.save();
         ctx.globalAlpha=alpha;
+
+        // 홈 로고 안에서만 공을 실제 크기의 약 절반으로 표시
+        ctx.translate(ball.x,ball.y);
+        ctx.scale(.52,.52);
+        ctx.translate(-ball.x,-ball.y);
+
         drawBall('#FFFFFF');
+
         ctx.restore();
       }
     }
