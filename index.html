@@ -25,7 +25,7 @@
       height: min(100dvh, 1038px);
       aspect-ratio: 390 / 844;
       overflow: hidden;
-      background: linear-gradient(180deg, #6FA6DE 0%, #8DB9E5 28%, #B9D5EF 52%, #DFECF8 74%, #F3F8FC 88%, #FFFFFF 100%);
+      background: linear-gradient(180deg, #5A9DE1 0%, #7CB4E8 27%, #A7CCEE 52%, #D2E6F6 75%, #EFF8FD 90%, #FFFFFF 100%);
       border: 0;
       outline: 0;
       box-shadow: 0 24px 80px rgba(0,0,0,.28);
@@ -100,7 +100,7 @@
       Object.freeze({id:'white',name:'PURE',color:'#f7f8fa'}),Object.freeze({id:'sky',name:'SKY',color:'#82c7ff'}),Object.freeze({id:'mint',name:'MINT',color:'#8de2c2'}),Object.freeze({id:'sun',name:'SUN',color:'#f4d58d'}),Object.freeze({id:'rose',name:'ROSE',color:'#f19baa'})
     ]);
     const INFINITE_MAPS = Object.freeze([
-      Object.freeze({id:'city',name:'CITY ASCENT',subtitle:'OPEN SKY',unlock:'FREE'}),Object.freeze({id:'seoul',name:'SEOUL ASCENT',subtitle:'SEOUL TO SPACE',unlock:'CLEAR SEOUL 10'})
+      Object.freeze({id:'city',name:'SKY ASCENT',subtitle:'GRADIENT SKY',unlock:'FREE'}),Object.freeze({id:'seoul',name:'SEOUL ASCENT',subtitle:'SEOUL TO SPACE',unlock:'CLEAR SEOUL 10'})
     ]);
 
     const CITY_ORDER = ['seoul', 'newyork', 'tokyo', 'paris', 'dubai', 'singapore'];
@@ -368,7 +368,7 @@
     const settings={ sound:safeGet('bounce_sound','1')!=='0', reducedMotion:window.matchMedia('(prefers-reduced-motion: reduce)').matches||safeGet('bounce_reduced_motion','0')==='1' };
     function validSkinId(id){return SKIN_SWATCHES.some(swatch=>swatch.id===id);}
     function isInfiniteMapUnlocked(id){return id==='city'||(id==='seoul'&&Boolean(progress.stars.SEOUL_10));}
-    const storedInfiniteMap=safeGet('bounce_infinite_map',''),appearance={ball:validSkinId(safeGet('bounce_ball_skin','white'))?safeGet('bounce_ball_skin','white'):'white',trail:validSkinId(safeGet('bounce_trail_skin','white'))?safeGet('bounce_trail_skin','white'):'white',infiniteMap:storedInfiniteMap&&isInfiniteMapUnlocked(storedInfiniteMap)?storedInfiniteMap:isInfiniteMapUnlocked('seoul')?'seoul':'city'};
+    const storedInfiniteMap=safeGet('bounce_infinite_map',''),appearance={ball:validSkinId(safeGet('bounce_ball_skin','white'))?safeGet('bounce_ball_skin','white'):'white',trail:validSkinId(safeGet('bounce_trail_skin','white'))?safeGet('bounce_trail_skin','white'):'white',infiniteMap:storedInfiniteMap&&isInfiniteMapUnlocked(storedInfiniteMap)?storedInfiniteMap:'city'};
     function skinColor(id){return SKIN_SWATCHES.find(swatch=>swatch.id===id)?.color||SKIN_SWATCHES[0].color;}
     function selectedInfiniteMap(){return isInfiniteMapUnlocked(appearance.infiniteMap)?appearance.infiniteMap:'city';}
     const game={ screen:'menu',phase:'homeIdle',gameMode:'infinite',currentCity:'seoul',currentStageIndex:0,currentStage:null,score:0,combo:1,best:loadBestScore(),elapsed:0,resultTime:0,transitionTimer:0,homeTransition:0,homeTransitionDuration:HOME_LAYOUT.transitionDuration,homeLaunch:false,skinTab:'balls',activeLine:null,lineSerial:0,tutorialAlpha:1,hasEverDrawn:false,lineDrawnThisRun:false,unlockedNotices:new Set(),resultStars:0,uiTime:0,menuEnteredAt:0,lastDeathReason:'FALL',selfTests:null,altitude:0,displayAltitude:0,highestCameraY:0,totalClimbDistance:0,infinitePhase:'sky',phaseAdvanceCooldown:0,previewHideHud:false };
@@ -698,8 +698,24 @@
       if(!record||record.status!=='ready'){drawInfiniteCityRise(climb,originAlpha);canvas.setAttribute('data-infinite-city-state',record?.status||'fallback');return;}
       const source=imageCoverSourceRect(record.image,WORLD.width,WORLD.height,0,record.image.naturalHeight,.5,BACKGROUND_THEMES.SEOUL_GENERAL_DAY.focusX),snappedY=Math.round(backgroundY*pixelRatio)/pixelRatio;ctx.save();ctx.globalAlpha=fade*originAlpha;drawSeoulSkyBase(record,0,0,WORLD.width,WORLD.height);drawSeoulSkyExtension(record,source,0,snappedY,WORLD.width,WORLD.height);ctx.drawImage(record.image,source.sx,source.sy,source.sw,source.sh,0,snappedY,WORLD.width,WORLD.height);ctx.fillStyle='rgba(12,16,20,.1)';ctx.fillRect(0,0,WORLD.width,WORLD.height);ctx.restore();canvas.setAttribute('data-infinite-city-state','ready');canvas.setAttribute('data-infinite-sky-seam','mirrored-sky-overlap');
     }
-    function drawInfiniteOrigin(climb){const mapId=selectedInfiniteMap(),originAlpha=smoothstep(game.elapsed/1.05);canvas.setAttribute('data-infinite-map',mapId);if(mapId==='seoul')drawInfiniteSeoulRise(climb,originAlpha);else{canvas.setAttribute('data-infinite-origin','CITY');drawInfiniteCityRise(climb,originAlpha);}}
-    function fillHomeSkyGradientWorld(transition=0){const stops=[[0,'#6FA6DE'],[.28,'#8DB9E5'],[.52,'#B9D5EF'],[.74,'#DFECF8'],[.88,'#F3F8FC'],[1,'#FFFFFF']],gradient=ctx.createLinearGradient(0,0,0,WORLD.height);for(const[position,color]of stops){const upperTarget=mixColor('#315b7b','#172d48',position);gradient.addColorStop(position,mixColor(color,upperTarget,transition));}ctx.fillStyle=gradient;ctx.fillRect(0,0,WORLD.width,WORLD.height);}
+    function drawInfiniteOrigin(climb){
+      const mapId=selectedInfiniteMap();
+      const originAlpha=smoothstep(game.elapsed/1.05);
+
+      canvas.setAttribute('data-infinite-map',mapId);
+
+      if(mapId==='seoul'){
+        drawInfiniteSeoulRise(climb,originAlpha);
+        return;
+      }
+
+      // Default map = SKY.
+      // No city silhouettes/buildings are rendered here.
+      canvas.setAttribute('data-infinite-origin','SKY');
+      canvas.setAttribute('data-infinite-city-state','disabled');
+      canvas.setAttribute('data-infinite-city-y','0');
+    }
+    function fillHomeSkyGradientWorld(transition=0){const stops=[[0,'#5A9DE1'],[.27,'#7CB4E8'],[.52,'#A7CCEE'],[.75,'#D2E6F6'],[.90,'#EFF8FD'],[1,'#FFFFFF']],gradient=ctx.createLinearGradient(0,0,0,WORLD.height);for(const[position,color]of stops){const upperTarget=mixColor('#315b7b','#172d48',position);gradient.addColorStop(position,mixColor(color,upperTarget,transition));}ctx.fillStyle=gradient;ctx.fillRect(0,0,WORLD.width,WORLD.height);}
     function drawInfiniteBackdrop(){const altitude=game.displayAltitude,phase=getInfinitePhase(),climb=Math.max(0,game.totalClimbDistance),topColors=['#6FA6DE','#315b7b','#0e1a2e','#17162d','#181333'],bottomColors=['#FFFFFF','#172d48','#070e1c','#0d0c1d','#0c091d'],blend=phase.blend,nextIndex=Math.min(phase.index+1,topColors.length-1),visualPhase=phase.index+blend;if(phase.index===0)fillHomeSkyGradientWorld(blend);else fillVerticalGradient(mixColor(topColors[phase.index],topColors[nextIndex],blend),mixColor(bottomColors[phase.index],bottomColors[nextIndex],blend));const starAlpha=smoothstep((visualPhase-.72)/1.18);drawStars(starAlpha,visualPhase>=3.85?82:58);drawGalaxy(smoothstep((visualPhase-3.78)/.22));drawPlanetBackground(smoothstep((visualPhase-2.76)/.24),altitude);drawEarthCurvature(smoothstep((visualPhase-.76)/.42)*(1-smoothstep((visualPhase-2.55)/.65)),altitude);drawInfiniteOrigin(climb);const cloudAlpha=.25*(1-smoothstep((climb-2350)/900));drawWorldCloudBand(-900,1.18,cloudAlpha);drawWorldCloudBand(-1370,1.38,cloudAlpha*.92);drawWorldCloudBand(-1830,1.08,cloudAlpha*.78);const highCloudAlpha=smoothstep((climb-450)/700)*(1-smoothstep((climb-2500)/700));drawClouds(highCloudAlpha*.32,game.uiTime*2.2-camera.y*.004);}
     function drawMountainRange(baseY,color,offset,scale=1){ctx.save();ctx.translate(offset%160,0);ctx.fillStyle=color;for(let repeat=-2;repeat<4;repeat++){const x=repeat*158;ctx.beginPath();ctx.moveTo(x,baseY);ctx.lineTo(x+43,baseY-82*scale);ctx.lineTo(x+72,baseY-35*scale);ctx.lineTo(x+105,baseY-112*scale);ctx.lineTo(x+158,baseY);ctx.closePath();ctx.fill();}ctx.restore();}
     function drawBridge(y,color,offset=0){ctx.save();ctx.translate(offset%120,0);ctx.strokeStyle=color;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-130,y);ctx.lineTo(520,y);ctx.stroke();ctx.lineWidth=2;for(let x=-100;x<500;x+=58){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+29,y-34);ctx.lineTo(x+58,y);ctx.stroke();}ctx.restore();}
@@ -739,7 +755,7 @@
     function drawDubaiBackdrop(){const rise=-camera.y;fillVerticalGradient('#777166','#343238');ctx.fillStyle='rgba(154,124,81,.16)';ctx.beginPath();ctx.moveTo(0,704);ctx.quadraticCurveTo(116,654,248,706);ctx.quadraticCurveTo(330,672,390,698);ctx.lineTo(390,844);ctx.lineTo(0,844);ctx.fill();drawSkylineLayer(842,'#2b2d32',rise*.05,.78,false);ctx.fillStyle='#42464d';ctx.beginPath();ctx.moveTo(202,735);ctx.lineTo(216,280);ctx.lineTo(230,735);ctx.closePath();ctx.fill();ctx.fillRect(212,240,7,54);ctx.fillRect(86,548,34,220);ctx.beginPath();ctx.moveTo(86,548);ctx.quadraticCurveTo(103,504,120,548);ctx.fill();}
     function drawSingaporeBackdrop(){const rise=-camera.y;fillVerticalGradient('#4d726d','#23373a');ctx.fillStyle='rgba(68,122,126,.24)';ctx.fillRect(0,675,WORLD.width,169);drawSkylineLayer(742,'#355054',rise*.028,.52,false);drawSkylineLayer(844,'#26373a',rise*.065,.72,false);ctx.fillStyle='#294d42';for(let i=0;i<16;i++){const x=((i*47+rise*.04)%470)-40,y=715+(i%4)*20,r=16+(i%3)*5;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();}ctx.strokeStyle='#42675b';ctx.lineWidth=5;for(const x of[72,303]){ctx.beginPath();ctx.moveTo(x,748);ctx.lineTo(x,592);ctx.stroke();ctx.fillStyle='#42675b';ctx.beginPath();ctx.arc(x,574,27,0,Math.PI*2);ctx.fill();ctx.strokeStyle='rgba(192,220,196,.25)';ctx.lineWidth=2;for(let a=0;a<6;a++){ctx.beginPath();ctx.moveTo(x,588);ctx.lineTo(x+Math.cos(a*Math.PI/3)*34,574+Math.sin(a*Math.PI/3)*24);ctx.stroke();}}}
     function drawCityBackdrop(theme=worldState.theme){if(STAGE_IMAGE_BACKGROUNDS[theme])drawStageImageBackdrop(theme);else if(theme.startsWith('tokyo'))drawTokyoBackdrop(theme);else if(theme.startsWith('paris'))drawParisBackdrop(theme);else if(theme.startsWith('dubai'))drawDubaiBackdrop(theme);else if(theme.startsWith('singapore'))drawSingaporeBackdrop(theme);else{fillVerticalGradient('#27333a',COLORS.background);drawSkylineLayer(844,'#20272d',-camera.y*.05,.78,false);}}
-    function drawMenuBackdrop(){canvas.setAttribute('data-home-background','full-viewport-gradient-only');canvas.setAttribute('data-home-gradient','#6FA6DE,#8DB9E5,#B9D5EF,#DFECF8,#F3F8FC,#FFFFFF');}
+    function drawMenuBackdrop(){canvas.setAttribute('data-home-background','full-viewport-gradient-only');canvas.setAttribute('data-home-gradient','#5A9DE1,#7CB4E8,#A7CCEE,#D2E6F6,#EFF8FD,#FFFFFF');}
 
     // =========================================================================
     // Rendering — world
@@ -754,9 +770,134 @@
       jump:Object.freeze({outer:'#347faa',core:'#71c9ee'})
     });
     function drawLineStructure(object,sy,variant='wall'){
-      const palette=STRUCTURE_LINE_PALETTES[variant],vertical=object.h>object.w,shortSide=Math.min(object.w,object.h),outerWidth=clamp(shortSide*.68,9,12),coreWidth=Math.max(3.2,outerWidth*.42),inset=outerWidth*.55,cx=object.x+object.w/2,cy=sy+object.h/2;
-      const x1=vertical?cx:object.x+inset,y1=vertical?sy+inset:cy,x2=vertical?cx:object.x+object.w-inset,y2=vertical?sy+object.h-inset:cy;
-      ctx.save();ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle=palette.outer;ctx.lineWidth=outerWidth;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.strokeStyle=palette.core;ctx.lineWidth=coreWidth;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+      const palette=
+        STRUCTURE_LINE_PALETTES[variant];
+
+      const vertical=
+        object.h>object.w;
+
+      const shortSide=
+        Math.min(
+          object.w,
+          object.h
+        );
+
+      const outerWidth=
+        clamp(
+          shortSide*.68,
+          9,
+          12
+        );
+
+      const coreWidth=
+        Math.max(
+          3.2,
+          outerWidth*.42
+        );
+
+      const inset=
+        outerWidth*.55;
+
+      // Enough distance to place the round cap
+      // completely outside the visible canvas.
+      const bleed=
+        outerWidth*1.4;
+
+      const cx=
+        object.x+
+        object.w/2;
+
+      const cy=
+        sy+
+        object.h/2;
+
+      let x1;
+      let y1;
+      let x2;
+      let y2;
+
+      if(vertical){
+        x1=cx;
+        x2=cx;
+
+        y1=sy+inset;
+        y2=sy+object.h-inset;
+
+        // Touching top edge
+        if(sy<=0){
+          y1=-bleed;
+        }
+
+        // Touching bottom edge
+        if(
+          sy+object.h>=
+          WORLD.height
+        ){
+          y2=
+            WORLD.height+
+            bleed;
+        }
+
+      }else{
+        y1=cy;
+        y2=cy;
+
+        x1=
+          object.x+
+          inset;
+
+        x2=
+          object.x+
+          object.w-
+          inset;
+
+        // Touching left edge
+        if(object.x<=0){
+          x1=-bleed;
+        }
+
+        // Touching right edge
+        if(
+          object.x+
+          object.w>=
+          WORLD.width
+        ){
+          x2=
+            WORLD.width+
+            bleed;
+        }
+      }
+
+      ctx.save();
+
+      ctx.lineCap='round';
+      ctx.lineJoin='round';
+
+      // Outer structure line
+      ctx.strokeStyle=
+        palette.outer;
+
+      ctx.lineWidth=
+        outerWidth;
+
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+
+      // Inner structure line
+      ctx.strokeStyle=
+        palette.core;
+
+      ctx.lineWidth=
+        coreWidth;
+
+      ctx.beginPath();
+      ctx.moveTo(x1,y1);
+      ctx.lineTo(x2,y2);
+      ctx.stroke();
+
+      ctx.restore();
     }
     function drawWall(object,sy){drawLineStructure(object,sy,'wall');}
     function drawDeathWall(object,sy){drawLineStructure(object,sy,'dead');}
@@ -771,7 +912,53 @@
     function drawWormhole(wormhole){const sy=worldToScreenY(wormhole.y);if(sy+wormhole.radius<-35||sy-wormhole.radius>WORLD.height+35)return;const angle=game.elapsed*.72+(wormhole.pairId.charCodeAt(0)%5)*.4;ctx.save();ctx.translate(wormhole.x,sy);ctx.strokeStyle=colorWithAlpha(wormhole.color,.26);ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,wormhole.radius,0,Math.PI*2);ctx.stroke();ctx.strokeStyle=colorWithAlpha(wormhole.color,.9);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,wormhole.radius-3,0,Math.PI*2);ctx.stroke();for(let i=0;i<3;i++){ctx.save();ctx.rotate(angle+i*2.1);ctx.strokeStyle=colorWithAlpha(wormhole.color,.72-i*.13);ctx.lineWidth=2.2-i*.35;ctx.beginPath();ctx.arc(0,0,wormhole.radius-8-i*4,-.65,.72);ctx.stroke();ctx.restore();}ctx.fillStyle=colorWithAlpha(wormhole.color,.13);ctx.beginPath();ctx.arc(0,0,wormhole.radius-9,0,Math.PI*2);ctx.fill();ctx.rotate(wormhole.orientation);ctx.strokeStyle=colorWithAlpha(wormhole.color,.76);ctx.lineWidth=1.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(wormhole.radius-6,0);ctx.lineTo(wormhole.radius+5,0);ctx.moveTo(wormhole.radius+1,-4);ctx.lineTo(wormhole.radius+5,0);ctx.lineTo(wormhole.radius+1,4);ctx.stroke();ctx.restore();}
     function drawStructures(){canvas.setAttribute('data-wall-visual','thick-player-line');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
     function shardDiamondPath(radius){ctx.beginPath();ctx.moveTo(0,-radius);ctx.lineTo(radius*.72,0);ctx.lineTo(0,radius);ctx.lineTo(-radius*.72,0);ctx.closePath();}
-    function drawShards(){canvas.setAttribute('data-shard-contrast','solid-deep-blue-diamond');for(const shard of worldState.shards){const sy=worldToScreenY(shard.y);if(sy<-20||sy>WORLD.height+20)continue;const pulse=1+Math.sin(shard.pulse)*.08;ctx.save();ctx.translate(shard.x,sy);ctx.rotate(shard.angle);ctx.scale(pulse,pulse);ctx.fillStyle=COLORS.shard;shardDiamondPath(shard.radius);ctx.fill();ctx.restore();}}
+    function drawShards(){
+      canvas.setAttribute(
+        'data-shard-contrast',
+        'sky-blue-outer-white-inner'
+      );
+
+      for(const shard of worldState.shards){
+        const sy=worldToScreenY(shard.y);
+
+        if(
+          sy<-20 ||
+          sy>WORLD.height+20
+        ) continue;
+
+        const pulse=
+          1+
+          Math.sin(shard.pulse)*.08;
+
+        ctx.save();
+
+        ctx.translate(
+          shard.x,
+          sy
+        );
+
+        ctx.rotate(
+          shard.angle
+        );
+
+        ctx.scale(
+          pulse,
+          pulse
+        );
+
+        // SKY BLUE outer diamond
+        ctx.fillStyle='#82C7FF';
+        shardDiamondPath(shard.radius*1.12);
+        ctx.fill();
+
+        // WHITE inner diamond
+        ctx.fillStyle='#FFFFFF';
+        shardDiamondPath(shard.radius*.58);
+        ctx.fill();
+
+        ctx.restore();
+      }
+    }
     function drawStageStar(){const star=worldState.stageStar;if(!star)return;const sy=worldToScreenY(star.y);if(sy<-24||sy>WORLD.height+24)return;const pulse=1+Math.sin(star.pulse)*.06;ctx.save();ctx.translate(star.x,sy);ctx.rotate(star.angle);ctx.scale(pulse,pulse);ctx.fillStyle=COLORS.finish;drawStarPath(0,0,star.radius,star.radius*.45);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.3;ctx.stroke();ctx.restore();}
     function drawFinish(){if(worldState.finishY===null)return;const sy=worldToScreenY(worldState.finishY);if(sy<-90||sy>WORLD.height+70)return;ctx.save();ctx.strokeStyle=COLORS.finish;ctx.lineWidth=2;ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(36,sy);ctx.lineTo(WORLD.width-36,sy);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillStyle=COLORS.finish;ctx.font='750 12px ui-sans-serif, sans-serif';ctx.fillText('FINISH',WORLD.width/2,sy-11);ctx.restore();}
     function drawParticles(){for(const p of effects.particles){const sy=worldToScreenY(p.y),alpha=clamp(p.life/p.maxLife,0,1);ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=p.color;ctx.translate(p.x,sy);ctx.rotate(p.rotation);if(p.shape==='diamond'){ctx.beginPath();ctx.moveTo(0,-p.size);ctx.lineTo(p.size,0);ctx.lineTo(0,p.size);ctx.lineTo(-p.size,0);ctx.closePath();ctx.fill();}else{ctx.beginPath();ctx.arc(0,0,p.size,0,Math.PI*2);ctx.fill();}ctx.restore();}}
@@ -823,7 +1010,42 @@
       if(mapId==='seoul'){
         const record=seoulBackgroundImages.get('SEOUL_GENERAL_DAY');ctx.fillStyle=record?.skyColor||'#6f8fa5';ctx.fillRect(x,y,w,h);if(record?.status==='ready')drawImageCover(record.image,x,y,w,h,record.image.naturalHeight*.48,record.image.naturalHeight*.52,.72,BACKGROUND_THEMES.SEOUL_GENERAL_DAY.focusX);
       }else{
-        const gradient=ctx.createLinearGradient(0,y,0,y+h);gradient.addColorStop(0,'#93cadd');gradient.addColorStop(1,'#568296');ctx.fillStyle=gradient;ctx.fillRect(x,y,w,h);ctx.fillStyle='#638a96';ctx.beginPath();ctx.moveTo(x,y+h*.66);ctx.lineTo(x+w*.2,y+h*.43);ctx.lineTo(x+w*.38,y+h*.68);ctx.lineTo(x+w*.57,y+h*.36);ctx.lineTo(x+w*.78,y+h*.62);ctx.lineTo(x+w,y+h*.45);ctx.lineTo(x+w,y+h);ctx.lineTo(x,y+h);ctx.fill();ctx.fillStyle='#355661';for(const item of[[.02,.45,.13],[.17,.25,.12],[.32,.5,.16],[.51,.18,.13],[.68,.38,.16],[.86,.27,.12]])ctx.fillRect(x+w*item[0],y+h*item[1],w*item[2],h);}
+        const gradient=ctx.createLinearGradient(0,y,0,y+h);
+        gradient.addColorStop(0,'#5A9DE1');
+        gradient.addColorStop(.32,'#82B9E9');
+        gradient.addColorStop(.66,'#C3DFF3');
+        gradient.addColorStop(1,'#F7FCFF');
+
+        ctx.fillStyle=gradient;
+        ctx.fillRect(x,y,w,h);
+
+        // subtle soft clouds
+        ctx.fillStyle='rgba(255,255,255,.20)';
+
+        ctx.beginPath();
+        ctx.ellipse(
+          x+w*.24,
+          y+h*.70,
+          w*.24,
+          h*.08,
+          0,
+          0,
+          Math.PI*2
+        );
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.ellipse(
+          x+w*.73,
+          y+h*.47,
+          w*.30,
+          h*.07,
+          0,
+          0,
+          Math.PI*2
+        );
+        ctx.fill();
+      }
       ctx.restore();
     }
     function drawInfiniteMapCard(map,index,baseY=174){const x=24,y=baseY+index*190,w=342,h=166,unlocked=isInfiniteMapUnlocked(map.id),selected=selectedInfiniteMap()===map.id,hovered=input.hoverAction===`map:${map.id}`;drawRoundedRect(x,y,w,h,16,unlocked?'rgba(255,255,255,.04)':'rgba(255,255,255,.018)',selected?'rgba(130,199,255,.72)':hovered?'rgba(130,199,255,.42)':'rgba(255,255,255,.13)',selected?1.7:1);drawInfiniteMapPreview(map.id,x+10,y+10,w-20,92,unlocked);ctx.textBaseline='top';ctx.textAlign='left';ctx.fillStyle=unlocked?COLORS.white:'#59616a';ctx.font='750 13px ui-sans-serif, sans-serif';ctx.fillText(map.name,x+16,y+116);ctx.fillStyle=unlocked?COLORS.muted:'#4b525a';ctx.font='600 8px ui-sans-serif, sans-serif';ctx.fillText(unlocked?map.subtitle:map.unlock,x+16,y+141);ctx.textAlign='right';ctx.fillStyle=selected?COLORS.accent:unlocked?COLORS.softWhite:'#555c64';ctx.font='700 8px ui-sans-serif, sans-serif';ctx.fillText(selected?'SELECTED':unlocked?'SELECT':'LOCKED',x+w-16,y+130);if(unlocked)registerHitArea(x,y,w,h,`map:${map.id}`);}
@@ -868,7 +1090,7 @@
       const nearBase=viewport.offsetY+(904+climb*.31)*scale;ctx.globalAlpha=fade*.76;ctx.fillStyle='#1f3741';ctx.fillRect(left,nearBase-16*scale,right-left,34*scale);ctx.globalAlpha=fade*.18;ctx.fillStyle='#b3d8e2';ctx.fillRect(left,nearBase-17*scale,right-left,2*scale);ctx.restore();
     }
     function drawResponsiveCityExtensions(){
-      const shouldDraw=game.gameMode==='infinite'&&['playing','infiniteResult'].includes(game.screen)&&selectedInfiniteMap()==='city',leftEdge=viewport.offsetX,rightEdge=viewport.offsetX+viewport.playableWidth;
+      const shouldDraw=false,leftEdge=viewport.offsetX,rightEdge=viewport.offsetX+viewport.playableWidth;
       canvas.setAttribute('data-responsive-city-extensions',shouldDraw?'true':'false');if(!shouldDraw)return;const climb=Math.max(0,game.totalClimbDistance);drawResponsiveCityBand(0,leftEdge,climb);drawResponsiveCityBand(rightEdge,viewport.cssWidth,climb);
     }
     let responsiveStageBackgroundDrawn=false;
