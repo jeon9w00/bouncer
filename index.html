@@ -2514,16 +2514,36 @@
     function drawPlayerLine(line,alpha=1,preview=false){if(!line)return;const ay=worldToScreenY(line.a.y),by=worldToScreenY(line.b.y),length=Math.hypot(line.b.x-line.a.x,line.b.y-line.a.y),valid=length>=LINE_RULES.minLength;ctx.save();ctx.globalAlpha=alpha*(preview&&!valid?.55:1);ctx.strokeStyle=preview&&!valid?COLORS.muted:COLORS.white;ctx.lineWidth=preview?4:LINE_RULES.width;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(line.a.x,ay);ctx.lineTo(line.b.x,by);ctx.stroke();ctx.restore();}
     function boostScale(object){if(object.pulse<=0)return 1;const p=1-object.pulse/BOOST_RULES.pulseDuration;if(p<.3)return lerp(1,.75,p/.3);if(p<.58)return lerp(.75,1.05,(p-.3)/.28);return lerp(1.05,1,(p-.58)/.42);}
     const STRUCTURE_LINE_PALETTES=Object.freeze({
-      wall:Object.freeze({outer:'#b9c8d2',core:'#f4f7f9'}),
-      dead:Object.freeze({outer:'#a83f4c',core:'#f36872'}),
-      jump:Object.freeze({outer:'#347faa',core:'#71c9ee'})
+      // 각 벽은 단 하나의 색만 사용한다.
+      wall:Object.freeze({
+        color:'#FFFFFF'
+      }),
+
+      dead:Object.freeze({
+        color:'#FF7964'
+      }),
+
+      jump:Object.freeze({
+        color:'#82C7FF'
+      })
     });
-    function drawLineStructure(object,sy,variant='wall'){
+
+
+    function drawLineStructure(
+      object,
+      sy,
+      variant='wall'
+    ){
       const palette=
-        STRUCTURE_LINE_PALETTES[variant];
+        STRUCTURE_LINE_PALETTES[
+          variant
+        ]||
+        STRUCTURE_LINE_PALETTES.wall;
+
 
       const vertical=
-        object.h>object.w;
+        object.h>
+        object.w;
 
       const shortSide=
         Math.min(
@@ -2531,24 +2551,15 @@
           object.h
         );
 
-      const outerWidth=
-        clamp(
-          shortSide*.68,
-          9,
-          12
-        );
-
-      const coreWidth=
-        Math.max(
-          3.2,
-          outerWidth*.42
-        );
+      /*
+        기존 물리 크기 느낌은 유지하되
+        outer/core 두 겹 렌더링을 완전히 제거.
+      */
+      const outerWidth=clamp(shortSide*.68,9,12);
 
       const inset=
         outerWidth*.55;
 
-      // Enough distance to place the round cap
-      // completely outside the visible canvas.
       const bleed=
         outerWidth*1.4;
 
@@ -2560,26 +2571,35 @@
         sy+
         object.h/2;
 
+
       let x1;
       let y1;
       let x2;
       let y2;
 
+
       if(vertical){
+
         x1=cx;
         x2=cx;
 
-        y1=sy+inset;
-        y2=sy+object.h-inset;
+        y1=
+          sy+
+          inset;
 
-        // Touching top edge
+        y2=
+          sy+
+          object.h-
+          inset;
+
+
         if(sy<=0){
           y1=-bleed;
         }
 
-        // Touching bottom edge
         if(
-          sy+object.h>=
+          sy+
+          object.h>=
           WORLD.height
         ){
           y2=
@@ -2588,6 +2608,7 @@
         }
 
       }else{
+
         y1=cy;
         y2=cy;
 
@@ -2600,12 +2621,11 @@
           object.w-
           inset;
 
-        // Touching left edge
+
         if(object.x<=0){
           x1=-bleed;
         }
 
-        // Touching right edge
         if(
           object.x+
           object.w>=
@@ -2617,37 +2637,40 @@
         }
       }
 
+
       ctx.save();
 
-      ctx.lineCap='round';
-      ctx.lineJoin='round';
-
-      // Outer structure line
       ctx.strokeStyle=
-        palette.outer;
+        palette.color;
 
       ctx.lineWidth=
         outerWidth;
 
-      ctx.beginPath();
-      ctx.moveTo(x1,y1);
-      ctx.lineTo(x2,y2);
-      ctx.stroke();
-
-      // Inner structure line
-      ctx.strokeStyle=
-        palette.core;
-
-      ctx.lineWidth=
-        coreWidth;
+      ctx.lineCap='round';
+      ctx.lineJoin='round';
 
       ctx.beginPath();
-      ctx.moveTo(x1,y1);
-      ctx.lineTo(x2,y2);
+
+      ctx.moveTo(
+        x1,
+        y1
+      );
+
+      ctx.lineTo(
+        x2,
+        y2
+      );
+
+      /*
+        딱 한 번만 그린다.
+        외곽선 / 내부선 없음.
+      */
       ctx.stroke();
 
       ctx.restore();
     }
+
+
     function isSolidBlockWall(object){
       /*
         물리 충돌 영역에 실제 부피가 있는 벽인지 판단.
@@ -3312,25 +3335,43 @@
     }
 
 
-    function drawStructures(){canvas.setAttribute('data-wall-visual','flat-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
+    function drawStructures(){canvas.setAttribute('data-wall-visual','single-color-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
     function shardDiamondPath(radius){ctx.beginPath();ctx.moveTo(0,-radius);ctx.lineTo(radius*.72,0);ctx.lineTo(0,radius);ctx.lineTo(-radius*.72,0);ctx.closePath();}
     function drawShards(){
+
       canvas.setAttribute(
         'data-shard-contrast',
-        'sky-blue-outer-white-inner'
+        'pure-white-solid'
       );
 
-      for(const shard of worldState.shards){
-        const sy=worldToScreenY(shard.y);
+
+      for(
+        const shard of
+        worldState.shards
+      ){
+
+        const sy=
+          worldToScreenY(
+            shard.y
+          );
+
 
         if(
           sy<-20 ||
-          sy>WORLD.height+20
-        ) continue;
+          sy>
+            WORLD.height+
+            20
+        ){
+          continue;
+        }
+
 
         const pulse=
           1+
-          Math.sin(shard.pulse)*.08;
+          Math.sin(
+            shard.pulse
+          )*.08;
+
 
         ctx.save();
 
@@ -3348,20 +3389,107 @@
           pulse
         );
 
-        // SKY BLUE outer diamond
-        ctx.fillStyle='#82C7FF';
-        shardDiamondPath(shard.radius*1.12);
+
+        /*
+          기존:
+          하늘색 큰 다이아
+          + 흰색 작은 다이아
+
+          변경:
+          흰색 다이아 하나만.
+        */
+        ctx.fillStyle=
+          '#FFFFFF';
+
+        shardDiamondPath(
+          shard.radius
+        );
+
         ctx.fill();
 
-        // WHITE inner diamond
-        ctx.fillStyle='#FFFFFF';
-        shardDiamondPath(shard.radius*.58);
-        ctx.fill();
 
         ctx.restore();
       }
     }
-    function drawStageStar(){const star=worldState.stageStar;if(!star)return;const sy=worldToScreenY(star.y);if(sy<-24||sy>WORLD.height+24)return;const pulse=1+Math.sin(star.pulse)*.06;ctx.save();ctx.translate(star.x,sy);ctx.rotate(star.angle);ctx.scale(pulse,pulse);ctx.fillStyle=COLORS.finish;drawStarPath(0,0,star.radius,star.radius*.45);ctx.fill();ctx.strokeStyle='rgba(255,255,255,.9)';ctx.lineWidth=1.3;ctx.stroke();ctx.restore();}
+
+
+    function drawStageStar(){
+
+      const star=
+        worldState.stageStar;
+
+      if(!star){
+        return;
+      }
+
+
+      const sy=
+        worldToScreenY(
+          star.y
+        );
+
+
+      if(
+        sy<-24 ||
+        sy>
+          WORLD.height+
+          24
+      ){
+        return;
+      }
+
+
+      const pulse=
+        1+
+        Math.sin(
+          star.pulse
+        )*.06;
+
+
+      ctx.save();
+
+      ctx.translate(
+        star.x,
+        sy
+      );
+
+      ctx.rotate(
+        star.angle
+      );
+
+      ctx.scale(
+        pulse,
+        pulse
+      );
+
+
+      /*
+        노란색 단색 별.
+        흰색 stroke 외곽선 완전 제거.
+      */
+      ctx.fillStyle=
+        COLORS.finish;
+
+      drawStarPath(
+        0,
+        0,
+        star.radius,
+        star.radius*.45
+      );
+
+      ctx.fill();
+
+
+      ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-stage-star-visual',
+        'solid-no-outline'
+      );
+    }
+
+
     function drawFinish(){if(worldState.finishY===null)return;const sy=worldToScreenY(worldState.finishY);if(sy<-90||sy>WORLD.height+70)return;ctx.save();ctx.strokeStyle=COLORS.finish;ctx.lineWidth=2;ctx.setLineDash([8,7]);ctx.beginPath();ctx.moveTo(36,sy);ctx.lineTo(WORLD.width-36,sy);ctx.stroke();ctx.setLineDash([]);ctx.textAlign='center';ctx.textBaseline='bottom';ctx.fillStyle=COLORS.finish;ctx.font='750 12px ui-sans-serif, sans-serif';ctx.fillText('FINISH',WORLD.width/2,sy-11);ctx.restore();}
     function drawParticles(){for(const p of effects.particles){const sy=worldToScreenY(p.y),alpha=clamp(p.life/p.maxLife,0,1);ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=p.color;ctx.translate(p.x,sy);ctx.rotate(p.rotation);if(p.shape==='diamond'){ctx.beginPath();ctx.moveTo(0,-p.size);ctx.lineTo(p.size,0);ctx.lineTo(0,p.size);ctx.lineTo(-p.size,0);ctx.closePath();ctx.fill();}else{ctx.beginPath();ctx.arc(0,0,p.size,0,Math.PI*2);ctx.fill();}ctx.restore();}}
     function drawFragments(){for(const f of effects.fragments){ctx.save();ctx.globalAlpha=clamp(f.life/f.maxLife,0,1);ctx.translate(f.x,worldToScreenY(f.y));ctx.rotate(f.angle);ctx.strokeStyle=f.color;ctx.lineWidth=3.3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-f.length/2,0);ctx.lineTo(f.length/2,0);ctx.stroke();ctx.restore();}}
@@ -4705,8 +4833,8 @@
     function drawSettings(){fillVerticalGradient('#1b2229',COLORS.background);drawBackButton('settingsBack');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=COLORS.white;ctx.font='780 28px ui-sans-serif, sans-serif';ctx.fillText('SETTINGS',24,94);ctx.fillStyle=COLORS.muted;ctx.font='600 10px ui-sans-serif, sans-serif';ctx.fillText('SOUND AND ACCESSIBILITY',25,132);[{label:'SFX',value:settings.sound,action:'toggleSound'},{label:'REDUCED MOTION',value:settings.reducedMotion,action:'toggleMotion'}].forEach((row,index)=>{const y=215+index*82;ctx.fillStyle=COLORS.softWhite;ctx.font='680 13px ui-sans-serif, sans-serif';ctx.fillText(row.label,28,y+12);drawRoundedRect(292,y,66,36,18,row.value?COLORS.accent:'#343a42');ctx.fillStyle=row.value?COLORS.ink:COLORS.muted;ctx.font='750 9px ui-sans-serif, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(row.value?'ON':'OFF',325,y+18);registerHitArea(270,y-10,104,56,row.action);ctx.textAlign='left';ctx.textBaseline='top';});ctx.fillStyle='rgba(205,210,216,.42)';ctx.font='600 8px ui-sans-serif, sans-serif';ctx.fillText('EFFECT SOUNDS ONLY',28,410);}
     function drawDimOverlay(alpha=.82){ctx.fillStyle=`rgba(15,17,20,${alpha})`;ctx.fillRect(0,0,WORLD.width,WORLD.height);}
     function deathLabel(){return isDeadlyReason(game.lastDeathReason)?`TOUCHED ${game.lastDeathReason}`:'MISSED THE LINE';}
-    function drawInfiniteResult(withDim=true){if(withDim)drawDimOverlay();const appear=easeOutCubic(game.resultTime/.35);ctx.globalAlpha=appear;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.white;ctx.font='780 27px ui-sans-serif, sans-serif';ctx.fillText('RUN OVER',WORLD.width/2,210);ctx.fillStyle=isDeadlyReason(game.lastDeathReason)?COLORS.danger:COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(deathLabel(),WORLD.width/2,245);ctx.textAlign='left';[['SCORE',game.score],['BEST',game.best],['MAX COMBO',`×${metrics.maxCombo}`],['PERFECT',metrics.perfects],['SHARDS',metrics.shards]].forEach((row,index)=>{const y=300+index*44;ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(row[0],82,y);ctx.textAlign='right';ctx.fillStyle=row[0]==='BEST'?COLORS.accent:COLORS.white;ctx.font='720 16px ui-sans-serif, sans-serif';ctx.fillText(String(row[1]),308,y);ctx.textAlign='left';});drawSmallButton('RETRY',70,558,250,52,'retry',true);drawSmallButton('HOME',110,632,170,44,'home');ctx.globalAlpha=1;}
-    function drawStageFailed(withDim=true){if(withDim)drawDimOverlay();const appear=easeOutCubic(game.resultTime/.35);ctx.globalAlpha=appear;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(game.currentStage.id.replace('_',' '),WORLD.width/2,238);ctx.fillStyle=COLORS.white;ctx.font='780 28px ui-sans-serif, sans-serif';ctx.fillText('RUN OVER',WORLD.width/2,280);ctx.fillStyle=isDeadlyReason(game.lastDeathReason)?COLORS.danger:COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(isDeadlyReason(game.lastDeathReason)?'TOUCH = OUT':'TRY THE NEXT LINE',WORLD.width/2,318);drawSmallButton('RETRY',70,442,250,52,'retry',true);drawSmallButton('STAGE SELECT',92,514,206,44,'stageSelect');drawSmallButton('HOME',120,576,150,42,'home');ctx.globalAlpha=1;}
+    function drawInfiniteResult(withDim=true){if(withDim)drawDimOverlay();const appear=easeOutCubic(game.resultTime/.35);ctx.globalAlpha=appear;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.white;ctx.font='780 27px ui-sans-serif, sans-serif';ctx.fillText('GAME OVER',WORLD.width/2,210);ctx.fillStyle=isDeadlyReason(game.lastDeathReason)?COLORS.danger:COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(deathLabel(),WORLD.width/2,245);ctx.textAlign='left';[['SCORE',game.score],['BEST',game.best],['MAX COMBO',`×${metrics.maxCombo}`],['PERFECT',metrics.perfects],['SHARDS',metrics.shards]].forEach((row,index)=>{const y=300+index*44;ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(row[0],82,y);ctx.textAlign='right';ctx.fillStyle=row[0]==='BEST'?COLORS.accent:COLORS.white;ctx.font='720 16px ui-sans-serif, sans-serif';ctx.fillText(String(row[1]),308,y);ctx.textAlign='left';});drawSmallButton('RETRY',70,558,250,52,'retry',true);drawSmallButton('HOME',110,632,170,44,'home');ctx.globalAlpha=1;}
+    function drawStageFailed(withDim=true){if(withDim)drawDimOverlay();const appear=easeOutCubic(game.resultTime/.35);ctx.globalAlpha=appear;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(game.currentStage.id.replace('_',' '),WORLD.width/2,238);ctx.fillStyle=COLORS.white;ctx.font='780 28px ui-sans-serif, sans-serif';ctx.fillText('GAME OVER',WORLD.width/2,280);ctx.fillStyle=isDeadlyReason(game.lastDeathReason)?COLORS.danger:COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(isDeadlyReason(game.lastDeathReason)?'TOUCH = OUT':'TRY THE NEXT LINE',WORLD.width/2,318);drawSmallButton('RETRY',70,442,250,52,'retry',true);drawSmallButton('STAGE SELECT',92,514,206,44,'stageSelect');drawSmallButton('HOME',120,576,150,42,'home');ctx.globalAlpha=1;}
     function drawStageClear(withDim=true){if(withDim)drawDimOverlay(.84);const appear=easeOutCubic(game.resultTime/.38),intro=game.currentStage.id==='SEOUL_01',mapStarValue=intro?'AUTO':metrics.stageStarCollected?'1 / 1':'0 / 1';ctx.globalAlpha=appear;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(game.currentStage.id.replace('_',' '),WORLD.width/2,174);ctx.fillStyle=COLORS.white;ctx.font='780 29px ui-sans-serif, sans-serif';ctx.fillText('CLEAR',WORLD.width/2,216);ctx.fillStyle=COLORS.finish;ctx.font='750 30px ui-sans-serif, sans-serif';ctx.fillText(`${'★'.repeat(game.resultStars)}${'☆'.repeat(3-game.resultStars)}`,WORLD.width/2,270);[['TIME',`${game.elapsed.toFixed(1)}s`],['LINES',metrics.lines],['MAP STAR',mapStarValue]].forEach((row,index)=>{const y=334+index*42;ctx.textAlign='left';ctx.fillStyle=COLORS.muted;ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(row[0],102,y);ctx.textAlign='right';ctx.fillStyle=row[0]==='MAP STAR'&&metrics.stageStarCollected?COLORS.finish:COLORS.white;ctx.font='720 15px ui-sans-serif, sans-serif';ctx.fillText(String(row[1]),288,y);});ctx.textAlign='center';ctx.fillStyle=COLORS.muted;ctx.font='600 9px ui-sans-serif, sans-serif';ctx.fillText(intro?'INTRO COMPLETE · ★★★':`★ FINISH  ·  ★ ${game.currentStage.starGoals.lines} LINES  ·  ★ MAP STAR`,WORLD.width/2,476);drawSmallButton('NEXT',70,526,250,52,'nextStage',true);drawSmallButton('RETRY',48,600,138,44,'retry');drawSmallButton('STAGE SELECT',204,600,138,44,'stageSelect');ctx.globalAlpha=1;}
     function updateAriaLabel(){let label='BOUNCER.';if(game.screen==='menu')label+=' Home. Draw one line to begin Infinite mode. World Tour, Skins, Achievements, Settings.';else if(game.screen==='skinSelect')label+=' Ball, trail, and Infinite map customization.';else if(game.screen==='achievements')label+=' Achievement progress.';else if(game.screen==='settings')label+=' Settings.';else if(game.screen==='worldSelect')label+=' World Tour city map.';else if(game.screen==='stageSelect')label+=` ${CITIES[game.currentCity].name} stage select.`;else if(game.screen==='playing')label+=` ${game.gameMode} playing. Score ${game.score}, combo ${game.combo}. Drag one line to rise.`;else if(game.screen==='stageClear')label+=` Stage clear with ${game.resultStars} stars.`;else label+=' Result screen.';canvas.setAttribute('aria-label',label);}
     function responsiveBackdropPalette(){
