@@ -47,9 +47,188 @@
       .orientation-guard { display: flex; }
     }
     @media (prefers-reduced-motion: reduce) { .game-shell { box-shadow: none; } }
+  
+    /* =====================================================
+       BOUNCER BOOT SPLASH
+       ===================================================== */
+
+    #bouncer-boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      background: #000000;
+
+      opacity: 1;
+      visibility: visible;
+
+      transition:
+        opacity .32s ease,
+        visibility .32s ease;
+
+      pointer-events: auto;
+    }
+
+    #bouncer-boot-splash.is-hiding {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .bouncer-boot-logo {
+      position: relative;
+
+      display: flex;
+      align-items: center;
+      justify-content: center;
+
+      color: #ffffff;
+
+      font-family:
+        Inter,
+        ui-sans-serif,
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        sans-serif;
+
+      font-weight: 800;
+      font-size: clamp(38px, 11vw, 52px);
+      line-height: 1;
+
+      letter-spacing: -2px;
+
+      transform: translateY(-2px);
+
+      animation:
+        bouncerBootLogoIn
+        .58s
+        cubic-bezier(.2,.8,.2,1)
+        both;
+    }
+
+    .bouncer-boot-logo-left,
+    .bouncer-boot-logo-right {
+      display: block;
+    }
+
+    .bouncer-boot-ball-area {
+      position: relative;
+
+      width: .55em;
+      height: 1em;
+
+      margin:
+        0
+        .05em;
+    }
+
+    .bouncer-boot-ball {
+      position: absolute;
+
+      left: 50%;
+      top: 50%;
+
+      width: .43em;
+      height: .43em;
+
+      border-radius: 50%;
+
+      background: #ffffff;
+
+      transform:
+        translate(
+          -50%,
+          -42%
+        );
+    }
+
+    .bouncer-boot-dot {
+      position: absolute;
+
+      left: 50%;
+
+      border-radius: 50%;
+
+      background: #ffffff;
+
+      transform:
+        translateX(-50%);
+    }
+
+    .bouncer-boot-dot-1 {
+      width: .115em;
+      height: .115em;
+      top: -.18em;
+      opacity: .30;
+    }
+
+    .bouncer-boot-dot-2 {
+      width: .14em;
+      height: .14em;
+      top: .02em;
+      opacity: .48;
+    }
+
+    .bouncer-boot-dot-3 {
+      width: .17em;
+      height: .17em;
+      top: .22em;
+      opacity: .68;
+    }
+
+    @keyframes bouncerBootLogoIn {
+      from {
+        opacity: 0;
+        transform:
+          translateY(8px)
+          scale(.97);
+      }
+
+      to {
+        opacity: 1;
+        transform:
+          translateY(-2px)
+          scale(1);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bouncer-boot-logo {
+        animation: none;
+      }
+
+      #bouncer-boot-splash {
+        transition-duration: .15s;
+      }
+    }
+
   </style>
 </head>
 <body>
+
+  <div
+    id="bouncer-boot-splash"
+    aria-hidden="true"
+  >
+    <div class="bouncer-boot-logo">
+      <span class="bouncer-boot-logo-left">B</span>
+
+      <span class="bouncer-boot-ball-area">
+        <span class="bouncer-boot-dot bouncer-boot-dot-1"></span>
+        <span class="bouncer-boot-dot bouncer-boot-dot-2"></span>
+        <span class="bouncer-boot-dot bouncer-boot-dot-3"></span>
+        <span class="bouncer-boot-ball"></span>
+      </span>
+
+      <span class="bouncer-boot-logo-right">UNCER</span>
+    </div>
+  </div>
+
   <main class="game-shell" aria-label="BOUNCER game">
     <canvas id="game" role="application" aria-label="BOUNCER. Choose Infinite or World Tour, then drag one line at a time to rise upward."></canvas>
   </main>
@@ -60,6 +239,38 @@
   </aside>
   <script>
     'use strict';
+
+
+    // =====================================================
+    // BOUNCER BOOT SPLASH
+    // =====================================================
+
+    const bootSplash =
+      document.getElementById(
+        'bouncer-boot-splash'
+      );
+
+    if (bootSplash) {
+
+      // 약 1.7초간 로고 유지
+      // + 약 0.3초 페이드 = 전체 약 2초
+      window.setTimeout(
+        () => {
+          bootSplash.classList.add(
+            'is-hiding'
+          );
+        },
+        1700
+      );
+
+      window.setTimeout(
+        () => {
+          bootSplash.remove();
+        },
+        2100
+      );
+    }
+
 
     // =========================================================================
     // Constants
@@ -650,7 +861,73 @@
       constructor(){this.context=null;this.enabled=true;this.muted=!settings.sound;}
       unlock(){if(!this.enabled||this.muted)return;try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC){this.enabled=false;return;}if(!this.context)this.context=new AC();if(this.context.state==='suspended')this.context.resume().catch(()=>{});}catch(error){this.enabled=false;}}
       tone(startFrequency,endFrequency,duration,volume,type='sine',delay=0){if(!this.context||!this.enabled||this.muted)return;try{const at=this.context.currentTime+delay,osc=this.context.createOscillator(),gain=this.context.createGain(),mixedVolume=clamp(volume*SFX_MASTER_GAIN,0,.12);osc.type=type;osc.frequency.setValueAtTime(startFrequency,at);osc.frequency.exponentialRampToValueAtTime(Math.max(20,endFrequency),at+duration);gain.gain.setValueAtTime(.0001,at);gain.gain.exponentialRampToValueAtTime(mixedVolume,at+.008);gain.gain.exponentialRampToValueAtTime(.0001,at+duration);osc.connect(gain);gain.connect(this.context.destination);osc.start(at);osc.stop(at+duration+.02);}catch(error){this.enabled=false;}}
-      normal(){this.tone(190,330,.09,.045);} perfect(){this.tone(290,520,.12,.05);this.tone(580,790,.11,.025,'triangle',.025);} shard(){this.tone(620,980,.12,.045,'triangle');this.tone(920,1320,.1,.02,'sine',.055);} wall(){this.tone(145,105,.07,.025,'triangle');} boost(){this.tone(250,760,.18,.06,'sawtooth');this.tone(520,1040,.16,.025,'sine',.025);} wormhole(){this.tone(360,720,.16,.04,'sine');this.tone(720,410,.18,.024,'triangle',.035);} meteorWarning(){this.tone(210,160,.08,.025,'triangle');} death(){this.tone(170,62,.32,.055,'triangle');} clear(){this.tone(390,720,.2,.05);this.tone(580,980,.18,.03,'triangle',.08);} achievement(){this.tone(420,660,.14,.035,'triangle');this.tone(660,880,.16,.024,'sine',.07);} retry(){this.tone(280,480,.1,.035);} ui(){this.tone(310,390,.055,.018);}
+      bounce(perfect=false){
+        if(perfect){
+          // PERFECT:
+          // 더 밝고 깨끗한 두 단계 바운스
+          this.tone(
+            265,
+            610,
+            .105,
+            .058,
+            'triangle'
+          );
+
+          this.tone(
+            690,
+            1120,
+            .12,
+            .035,
+            'sine',
+            .018
+          );
+
+          this.tone(
+            150,
+            92,
+            .07,
+            .026,
+            'sine',
+            .008
+          );
+        }else{
+          // NORMAL:
+          // 짧은 고무공 POP + SNAP
+          this.tone(
+            175,
+            355,
+            .075,
+            .055,
+            'triangle'
+          );
+
+          this.tone(
+            510,
+            390,
+            .055,
+            .025,
+            'sine',
+            .006
+          );
+
+          this.tone(
+            115,
+            82,
+            .055,
+            .020,
+            'sine',
+            .004
+          );
+        }
+      }
+
+      normal(){
+        this.bounce(false);
+      }
+
+      perfect(){
+        this.bounce(true);
+      } shard(){this.tone(620,980,.12,.045,'triangle');this.tone(920,1320,.1,.02,'sine',.055);} wall(){this.tone(145,105,.07,.025,'triangle');} boost(){this.tone(250,760,.18,.06,'sawtooth');this.tone(520,1040,.16,.025,'sine',.025);} wormhole(){this.tone(360,720,.16,.04,'sine');this.tone(720,410,.18,.024,'triangle',.035);} meteorWarning(){this.tone(210,160,.08,.025,'triangle');} death(){this.tone(170,62,.32,.055,'triangle');} clear(){this.tone(390,720,.2,.05);this.tone(580,980,.18,.03,'triangle',.08);} achievement(){this.tone(420,660,.14,.035,'triangle');this.tone(660,880,.16,.024,'sine',.07);} retry(){this.tone(280,480,.1,.035);} ui(){this.tone(310,390,.055,.018);}
     }
     const audio=new AudioEngine();
     reconcileAchievements(false);
@@ -1904,11 +2181,17 @@
     // Overlay rendering
     // =========================================================================
 
+
     function drawTutorialIntroOverlay(){
       ctx.save();
 
-      // 첫 화면은 완전한 회색
-      ctx.fillStyle='#4A4F54';
+      /*
+        HOME 화면은 이미 아래에 렌더링되어 있음.
+        그 위에 반투명 회색만 덮어서
+        로고/배경이 은은하게 보이게 한다.
+      */
+      ctx.fillStyle=
+        'rgba(70,74,79,.72)';
 
       ctx.fillRect(
         0,
@@ -1917,8 +2200,41 @@
         WORLD.height
       );
 
+
+      // 화면 중앙에 아주 약한 집중 영역
+      const glow=
+        ctx.createRadialGradient(
+          WORLD.width/2,
+          380,
+          20,
+          WORLD.width/2,
+          380,
+          230
+        );
+
+      glow.addColorStop(
+        0,
+        'rgba(255,255,255,.035)'
+      );
+
+      glow.addColorStop(
+        1,
+        'rgba(255,255,255,0)'
+      );
+
+      ctx.fillStyle=glow;
+
+      ctx.fillRect(
+        0,
+        120,
+        WORLD.width,
+        520
+      );
+
+
       ctx.textAlign='center';
       ctx.textBaseline='middle';
+
 
       ctx.fillStyle='#FFFFFF';
 
@@ -1928,8 +2244,9 @@
       ctx.fillText(
         '안녕하세요',
         WORLD.width/2,
-        330
+        334
       );
+
 
       ctx.font=
         '700 15px ui-sans-serif, sans-serif';
@@ -1937,17 +2254,18 @@
       ctx.fillText(
         '지금부터 BOUNCER의',
         WORLD.width/2,
-        374
+        378
       );
 
       ctx.fillText(
         '튜토리얼을 시작할게요',
         WORLD.width/2,
-        397
+        401
       );
 
+
       ctx.fillStyle=
-        'rgba(255,255,255,.62)';
+        'rgba(255,255,255,.66)';
 
       ctx.font=
         '600 10px ui-sans-serif, sans-serif';
@@ -1955,8 +2273,30 @@
       ctx.fillText(
         '화면을 클릭하여 넘어가기',
         WORLD.width/2,
-        455
+        462
       );
+
+
+      // 작은 클릭 표시
+      const pulse=
+        .58+
+        Math.sin(game.uiTime*3.4)*.14;
+
+      ctx.globalAlpha=pulse;
+
+      ctx.fillStyle='#FFFFFF';
+
+      ctx.beginPath();
+
+      ctx.arc(
+        WORLD.width/2,
+        489,
+        2.2,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
 
       ctx.restore();
     }
