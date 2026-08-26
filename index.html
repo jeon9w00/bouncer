@@ -207,6 +207,14 @@
       }
     }
 
+  
+    /* BOUNCER BOOT LOGO SIZE OVERRIDE */
+    #bouncer-boot-splash .bouncer-boot-logo {
+      scale: 0.5;
+      transform-origin: center center;
+    }
+    /* END BOUNCER BOOT LOGO SIZE OVERRIDE */
+
   </style>
 </head>
 <body>
@@ -2525,25 +2533,12 @@
     function earnedWorldStars(){return Object.values(progress.stars).reduce((total,value)=>total+clamp(Number(value)||0,0,3),0);}
     function drawHomeTopBar(alpha,interactive=true){ctx.save();ctx.globalAlpha=alpha;drawRoundedRect(18,24,112,34,17,'rgba(255,255,255,.15)','rgba(255,255,255,.28)',1);ctx.fillStyle='#F5D77E';drawStarPath(35,41,6);ctx.fill();ctx.textAlign='left';ctx.textBaseline='middle';ctx.fillStyle='#FFFFFF';ctx.font='650 10px ui-sans-serif, sans-serif';ctx.fillText(`${earnedWorldStars()} / 300`,48,42);drawRoundedRect(332,22,40,40,20,'rgba(255,255,255,.11)','rgba(255,255,255,.3)',1);drawHomeSettingsIcon(352,42);if(interactive)registerHitArea(328,18,48,48,'settings');ctx.restore();}
     function homeLogoFontSize(){
-      /*
-        실제 보이는 논리 화면 폭에 따라 로고 크기 조절.
-
-        일반적인 폰:
-        약 31~33px
-
-        아주 좁거나 세로가 긴 폰에서도
-        너무 크게 보이지 않도록 28~34px 제한.
-      */
-      return clamp(
-        viewport.visibleLogicalWidth*.043,
-        14,
-        17
-      );
+      return 39;
     }
 
     function homeLogoMetrics(){
       const y=HOME_LAYOUT.logoY;
-      const gap=3.5;
+      const gap=4;
       const fontSize=homeLogoFontSize();
 
       ctx.save();
