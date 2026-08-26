@@ -978,7 +978,8 @@
       );
 
       return schedule;
-    };worldState.stageMeteors.push(schedule);return schedule;}
+    }
+
     function spawnStageMeteor(schedule){if(!schedule||schedule.state==='active'||schedule.state==='done')return null;const radius=schedule.radius,object=createWorldObject({type:'meteor',x:schedule.x-radius,y:schedule.y-radius,w:radius*2,h:radius*2,radius,motion:'stageMeteor',velocityX:schedule.vx,velocityY:schedule.vy,stageMeteor:true,scheduleId:schedule.id},null,true);object.motionStartedAt=game.elapsed;schedule.state='active';schedule.spawnedObjectId=object.id;return object;}
     function updateStageMeteorSchedules(dt){if(game.gameMode!=='stage'||!worldState.stageMeteors.length)return;for(const schedule of worldState.stageMeteors){if(schedule.state==='pending'&&camera.y<=schedule.triggerCameraY){schedule.state='warning';schedule.warningElapsed=0;audio.meteorWarning();}else if(schedule.state==='warning'){schedule.warningElapsed+=dt;if(schedule.warningElapsed>=schedule.warningTime)spawnStageMeteor(schedule);}}}
     function validateSegmentTemplate(template){
