@@ -1807,7 +1807,7 @@
 
           description:[
             '빨간 벽은 위험한 벽입니다.',
-            '공이 닿으면 즉시 실패합니다.'
+            '공이 닿으면 즉시 게임 오버입니다.'
           ]
         }),
 
@@ -2146,6 +2146,412 @@
           firstRunTutorial.state='returning';
           firstRunTutorial.fade=1;
 
+
+    // =====================================================
+    // BOUNCER FIRST-VISIT + TUTORIAL CHECKPOINT V3
+    // =====================================================
+
+    /*
+      브라우저의 전체 방문 기록 자체는
+      웹 페이지에서 읽을 수 없다.
+
+      대신 BOUNCER가 자기 사이트에서 남긴
+      localStorage를 기준으로 이전 방문 여부를 판단한다.
+
+      첫 접속 순간 바로 visit key를 기록하므로
+      튜토리얼 도중 새로고침해도 다음 접속에는
+      자동으로 다시 튜토리얼이 뜨지 않는다.
+    */
+
+    const BOUNCER_VISIT_KEY=
+      'bounce_has_visited_v1';
+
+    const BOUNCER_FORCE_TUTORIAL_SESSION_KEY=
+      'bounce_force_tutorial_once_v1';
+
+
+    function hasStoredBouncerVisit(){
+
+      try{
+
+        for(
+          let index=0;
+          index<localStorage.length;
+          index++
+        ){
+          const key=
+            localStorage.key(index)||'';
+
+          if(
+            key.startsWith('bounce_') &&
+            key!==BOUNCER_VISIT_KEY
+          ){
+            return true;
+          }
+        }
+
+      }catch(error){}
+
+      return(
+        safeGet(
+          BOUNCER_VISIT_KEY,
+          '0'
+        )==='1'
+      );
+    }
+
+
+    let forceTutorialOnce=false;
+
+    try{
+
+      forceTutorialOnce=
+        sessionStorage.getItem(
+          BOUNCER_FORCE_TUTORIAL_SESSION_KEY
+        )==='1';
+
+      if(forceTutorialOnce){
+
+        sessionStorage.removeItem(
+          BOUNCER_FORCE_TUTORIAL_SESSION_KEY
+        );
+      }
+
+    }catch(error){}
+
+
+    const bouncerHadPriorVisit=
+      !forceTutorialOnce &&
+      hasStoredBouncerVisit();
+
+
+    // 현재 접속은 즉시 방문 처리
+    safeSet(
+      BOUNCER_VISIT_KEY,
+      '1'
+    );
+
+
+    if(bouncerHadPriorVisit){
+
+      // 기존 사용자:
+      // 튜토리얼을 절대 자동 시작하지 않는다.
+      safeSet(
+        FIRST_RUN_TUTORIAL_KEY,
+        '1'
+      );
+
+      firstRunTutorial.enabled=false;
+
+      firstRunTutorial.state=
+        'done';
+
+      firstRunTutorial.nextStep=0;
+      firstRunTutorial.currentStep=-1;
+
+      firstRunTutorial.finishTimer=0;
+      firstRunTutorial.fade=0;
+
+    }else{
+
+      // 완전히 새로운 사용자
+      safeSet(
+        FIRST_RUN_TUTORIAL_KEY,
+        '0'
+      );
+
+      firstRunTutorial.enabled=true;
+
+      firstRunTutorial.state=
+        'intro';
+
+      firstRunTutorial.nextStep=0;
+      firstRunTutorial.currentStep=-1;
+
+      firstRunTutorial.finishTimer=0;
+      firstRunTutorial.fade=0;
+    }
+
+
+    /*
+      개발/테스트용.
+
+      브라우저 콘솔에서
+
+      BOUNCER_RESET_TUTORIAL()
+
+      입력하면 딱 한 번
+      새 사용자처럼 튜토리얼을 다시 볼 수 있다.
+    */
+    window.BOUNCER_RESET_TUTORIAL=
+      function(){
+
+        try{
+
+          sessionStorage.setItem(
+            BOUNCER_FORCE_TUTORIAL_SESSION_KEY,
+            '1'
+          );
+
+        }catch(error){}
+
+        safeSet(
+          FIRST_RUN_TUTORIAL_KEY,
+          '0'
+        );
+
+        location.reload();
+      };
+
+
+    // =====================================================
+    // Tutorial progress checkpoint
+    // =====================================================
+
+    function currentTutorialCheckpointIndex(){
+
+      /*
+        현재 설명창에서 죽을 일은 거의 없지만,
+        혹시 pause 상태라면 현재 단계 그대로.
+      */
+      if(
+        firstRunTutorial.currentStep>=0
+      ){
+        return clamp(
+          firstRunTutorial.currentStep,
+          0,
+          FIRST_RUN_TUTORIAL_STEPS.length-1
+        );
+      }
+
+
+      /*
+        설명을 보고 진행 중이면
+        nextStep은 다음 설명을 가리킨다.
+
+        따라서 nextStep - 1이
+        마지막으로 배운 체크포인트다.
+
+        예:
+        WHITE 설명 후 진행 -> nextStep 1 -> WHITE(0)
+        RED 설명 후 진행   -> nextStep 2 -> RED(1)
+        BLUE 설명 후 진행  -> nextStep 3 -> BLUE(2)
+      */
+      if(
+        firstRunTutorial.nextStep>0
+      ){
+        return clamp(
+          firstRunTutorial.nextStep-1,
+          0,
+          FIRST_RUN_TUTORIAL_STEPS.length-1
+        );
+      }
+
+
+      // 아직 첫 벽까지 도착하지 못한 경우
+      return -1;
+    }
+
+
+    function restoreTutorialCheckpoint(
+      stepIndex
+    ){
+
+      abortDrawing();
+
+      /*
+        아직 첫 벽 설명 전 사망:
+        로고 밑 선 긋기 부분으로 돌아간다.
+      */
+      if(stepIndex<0){
+
+        prepareHomeIdle();
+
+        firstRunTutorial.enabled=true;
+
+        firstRunTutorial.state=
+          'homePrompt';
+
+        firstRunTutorial.nextStep=0;
+        firstRunTutorial.currentStep=-1;
+
+        firstRunTutorial.finishTimer=0;
+        firstRunTutorial.fade=0;
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'home-checkpoint'
+        );
+
+        return;
+      }
+
+
+      /*
+        현재 튜토리얼 월드를 깨끗하게 다시 만든다.
+      */
+      resetRuntime();
+
+      game.gameMode=
+        'tutorial';
+
+      game.currentStage=null;
+
+      game.screen=
+        'playing';
+
+      game.phase=
+        'playing';
+
+      game.homeLaunch=false;
+
+      firstRunTutorial.enabled=true;
+
+      firstRunTutorial.state=
+        'running';
+
+      firstRunTutorial.nextStep=
+        stepIndex;
+
+      firstRunTutorial.currentStep=-1;
+
+      firstRunTutorial.finishTimer=0;
+      firstRunTutorial.fade=0;
+
+
+      setupFirstRunTutorialWorld();
+
+
+      const step=
+        FIRST_RUN_TUTORIAL_STEPS[
+          stepIndex
+        ];
+
+      const object=
+        firstRunTutorial.objects.get(
+          step.id
+        );
+
+
+      /*
+        설명할 벽을 화면 상단 약 190px에 배치.
+      */
+      const objectWorldY=
+        object
+          ?object.y
+          :step.y;
+
+      camera.y=
+        objectWorldY-190;
+
+      camera.targetY=
+        camera.y;
+
+
+      /*
+        공은 해당 벽보다 충분히 아래에 재배치.
+
+        벽이 왼쪽이면 공은 오른쪽,
+        벽이 오른쪽이면 공은 왼쪽에서 시작해서
+        다시 진행하기 편하게 한다.
+      */
+      const centerX=
+        step.x+
+        step.w/2;
+
+      ball.x=
+        centerX<
+        WORLD.width/2
+          ?300
+          :90;
+
+      ball.y=
+        camera.y+535;
+
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
+
+      ball.vx=
+        ball.x>centerX
+          ?-22
+          :22;
+
+      ball.vy=
+        -110;
+
+      ball.wormholeCooldown=0;
+
+
+      game.activeLine=null;
+
+      effects.trail.length=0;
+
+
+      /*
+        원래 튜토리얼의 pause 함수를 그대로 사용.
+        따라서 벽 설명 UI와
+        "진행하려면 선을 그으시오" 동작도 유지된다.
+      */
+      pauseFirstRunTutorial(
+        stepIndex
+      );
+
+
+      canvas.setAttribute(
+        'data-tutorial-checkpoint',
+        step.id
+      );
+    }
+
+
+    /*
+      일반 게임의 endRun은 그대로 보존하고
+      튜토리얼에서만 체크포인트 복귀로 바꾼다.
+    */
+    const normalEndRunBeforeTutorialCheckpoint=
+      endRun;
+
+
+    endRun=
+      function(
+        reason='FALL',
+        x=ball.x,
+        y=ball.y
+      ){
+
+        if(
+          game.gameMode==='tutorial' &&
+          firstRunTutorial.enabled &&
+          (
+            firstRunTutorial.state==='running' ||
+            firstRunTutorial.state==='pause'
+          )
+        ){
+
+          const checkpoint=
+            currentTutorialCheckpointIndex();
+
+          audio.death();
+
+          restoreTutorialCheckpoint(
+            checkpoint
+          );
+
+          return;
+        }
+
+
+        return normalEndRunBeforeTutorialCheckpoint(
+          reason,
+          x,
+          y
+        );
+      };
+
+
           prepareHomeIdle();
 
           game.tutorialAlpha=0;
@@ -2314,52 +2720,25 @@
 
       ctx.save();
 
-      // 위쪽만 반투명 회색으로 가림.
-      // splitY 아래는 완전히 열어서
-      // 아래 전체 영역에서 스와이프 가능.
-      ctx.fillStyle=
-        'rgba(37,41,46,.67)';
-
-      ctx.fillRect(
-        0,
-        0,
-        WORLD.width,
-        splitY
-      );
-
-      // 경계가 딱 잘린 것처럼 보이지 않게
-      const edge=
-        ctx.createLinearGradient(
-          0,
-          splitY-32,
-          0,
-          splitY+18
-        );
-
-      edge.addColorStop(
-        0,
-        'rgba(37,41,46,0)'
-      );
-
-      edge.addColorStop(
-        1,
-        'rgba(37,41,46,.13)'
-      );
-
-      ctx.fillStyle=edge;
-
-      ctx.fillRect(
-        0,
-        splitY-32,
-        WORLD.width,
-        50
-      );
-
+      /*
+        IMPORTANT
+        회색/검정 오버레이 없음.
+        원래 BOUNCER 홈 배경을 그대로 보여준다.
+      */
 
       ctx.textAlign='center';
       ctx.textBaseline='middle';
 
-      ctx.fillStyle='#FFFFFF';
+      ctx.shadowColor=
+        'rgba(20,40,60,.24)';
+
+      ctx.shadowBlur=5;
+
+      ctx.shadowOffsetY=1;
+
+
+      ctx.fillStyle=
+        '#FFFFFF';
 
       ctx.font=
         '750 15px ui-sans-serif, sans-serif';
@@ -2377,8 +2756,10 @@
       );
 
 
+      ctx.shadowBlur=3;
+
       ctx.fillStyle=
-        'rgba(255,255,255,.58)';
+        'rgba(255,255,255,.70)';
 
       ctx.font=
         '600 9px ui-sans-serif, sans-serif';
@@ -2391,21 +2772,10 @@
 
       ctx.restore();
 
-
-      if(
-        input.drawing &&
-        input.start &&
-        input.end
-      ){
-        drawPlayerLine(
-          {
-            a:input.start,
-            b:input.end
-          },
-          1,
-          true
-        );
-      }
+      canvas.setAttribute(
+        'data-tutorial-home-overlay',
+        'none'
+      );
     }
 
 
