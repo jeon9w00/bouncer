@@ -276,16 +276,78 @@
       const width=Math.max(1,cssWidth),height=Math.max(1,cssHeight),safeTop=Math.max(0,safeInsets.top||0),safeRight=Math.max(0,safeInsets.right||0),safeBottom=Math.max(0,safeInsets.bottom||0),safeLeft=Math.max(0,safeInsets.left||0),availableWidth=Math.max(1,width-safeLeft-safeRight),availableHeight=Math.max(1,height-safeTop-safeBottom),worldScale=Math.max(.01,Math.max(availableWidth/WORLD.width,availableHeight/WORLD.height)),playableWidth=WORLD.width*worldScale,playableHeight=WORLD.height*worldScale,offsetX=safeLeft+(availableWidth-playableWidth)/2,offsetY=safeTop;
       return{cssWidth:width,cssHeight:height,worldScale,offsetX,offsetY,safeTop,safeRight,safeBottom,safeLeft,playableWidth,playableHeight,visibleLogicalWidth:availableWidth/worldScale,visibleLogicalHeight:availableHeight/worldScale};
     }
+
+    function calculateUiFillViewportLayout(cssWidth,cssHeight,safeInsets={top:0,right:0,bottom:0,left:0}){
+      const width=Math.max(1,cssWidth);
+      const height=Math.max(1,cssHeight);
+
+      const safeTop=Math.max(0,safeInsets.top||0);
+      const safeRight=Math.max(0,safeInsets.right||0);
+      const safeBottom=Math.max(0,safeInsets.bottom||0);
+      const safeLeft=Math.max(0,safeInsets.left||0);
+
+      const availableWidth=Math.max(1,width-safeLeft-safeRight);
+      const availableHeight=Math.max(1,height-safeTop-safeBottom);
+
+      // UI 화면은 세로 비율 때문에 좌우 여백이 생기지 않도록
+      // 무조건 화면 가로폭 100%에 맞춘다.
+      const worldScale=availableWidth/WORLD.width;
+
+      const playableWidth=WORLD.width*worldScale;
+      const playableHeight=WORLD.height*worldScale;
+
+      return{
+        cssWidth:width,
+        cssHeight:height,
+        worldScale,
+        offsetX:safeLeft,
+        offsetY:safeTop,
+        safeTop,
+        safeRight,
+        safeBottom,
+        safeLeft,
+        playableWidth,
+        playableHeight,
+        visibleLogicalWidth:WORLD.width,
+        visibleLogicalHeight:availableHeight/worldScale
+      };
+    }
+
     function readSafeAreaInsets(){const style=getComputedStyle(document.documentElement),number=name=>Number.parseFloat(style.getPropertyValue(name))||0;return{top:number('--safe-top'),right:number('--safe-right'),bottom:number('--safe-bottom'),left:number('--safe-left')};}
     function localViewportPreview(){try{if(!['localhost','127.0.0.1'].includes(location.hostname))return null;const match=new URLSearchParams(location.search).get('previewViewport')?.match(/^(\d{3,4})x(\d{3,4})$/);return match?{width:Number(match[1]),height:Number(match[2])}:null;}catch(error){return null;}}
     function exposeViewport(layout,mode){viewport={...layout,mode,isMobile:viewportLayouts.isMobile};canvas.setAttribute('data-viewport-mode',mode);canvas.setAttribute('data-logical-world',`${WORLD.width}x${WORLD.height}`);canvas.setAttribute('data-css-viewport',`${Math.round(viewport.cssWidth)}x${Math.round(viewport.cssHeight)}`);canvas.setAttribute('data-world-scale',viewport.worldScale.toFixed(6));canvas.setAttribute('data-world-offset',`${viewport.offsetX.toFixed(2)},${viewport.offsetY.toFixed(2)}`);canvas.setAttribute('data-visible-logical-height',viewport.visibleLogicalHeight.toFixed(2));canvas.setAttribute('data-safe-insets',`${viewport.safeTop},${viewport.safeRight},${viewport.safeBottom},${viewport.safeLeft}`);window.BOUNCER_VIEWPORT=Object.freeze({...viewport,dpr:pixelRatio});}
-    function activateViewportForScreen(){const worldScreen=['menu','playing','infiniteResult','stageFailed','stageClear'].includes(game.screen),mode=viewportLayouts.isMobile&&worldScreen?'gameplay':'contained';exposeViewport(viewportLayouts[mode],mode);}
+
+    function activateViewportForScreen(){
+      const worldScreen=[
+        'menu',
+        'playing',
+        'infiniteResult',
+        'stageFailed',
+        'stageClear'
+      ].includes(game.screen);
+
+      let mode='contained';
+
+      if(viewportLayouts.isMobile){
+        if(game.screen==='stageSelect'){
+          // Stage Select는 가로폭을 꽉 채운다.
+          mode='uiFill';
+        }else if(worldScreen){
+          mode='gameplay';
+        }
+      }
+
+      exposeViewport(
+        viewportLayouts[mode],
+        mode
+      );
+    }
     function updateViewport(){
       const visual=window.visualViewport,actualWidth=visual?.width||window.innerWidth||WORLD.width,actualHeight=visual?.height||window.innerHeight||WORLD.height,preview=localViewportPreview(),rawWidth=preview?.width||actualWidth,rawHeight=preview?.height||actualHeight,isMobile=Boolean(preview)||rawWidth<=600||window.matchMedia('(pointer: coarse)').matches;
       let availableCssWidth,availableCssHeight;
       if(isMobile){availableCssWidth=Math.min(rawWidth,VIEWPORT_RULES.maxPlayableCssWidth);availableCssHeight=rawHeight;}else{availableCssHeight=Math.min(rawHeight,VIEWPORT_RULES.maxDesktopCssWidth*WORLD.height/WORLD.width);availableCssWidth=Math.min(rawWidth,VIEWPORT_RULES.maxDesktopCssWidth,availableCssHeight*WORLD.width/WORLD.height);availableCssHeight=availableCssWidth*WORLD.height/WORLD.width;}
       gameShell.style.width=`${availableCssWidth}px`;gameShell.style.height=`${availableCssHeight}px`;gameShell.style.transform=preview?`scale(${Math.min(1,actualWidth/availableCssWidth,actualHeight/availableCssHeight)})`:'';gameShell.style.transformOrigin=preview?'center top':'';
-      const safeInsets=readSafeAreaInsets();viewportLayouts={contained:calculateViewportLayout(availableCssWidth,availableCssHeight,safeInsets),gameplay:calculateGameplayViewportLayout(availableCssWidth,availableCssHeight,safeInsets),isMobile};
+      const safeInsets=readSafeAreaInsets();viewportLayouts={contained:calculateViewportLayout(availableCssWidth,availableCssHeight,safeInsets),gameplay:calculateGameplayViewportLayout(availableCssWidth,availableCssHeight,safeInsets),uiFill:calculateUiFillViewportLayout(availableCssWidth,availableCssHeight,safeInsets),isMobile};
       pixelRatio=Math.min(window.devicePixelRatio||1,VIEWPORT_RULES.maxDpr);
       const targetWidth=Math.max(1,Math.round(availableCssWidth*pixelRatio)),targetHeight=Math.max(1,Math.round(availableCssHeight*pixelRatio));
       if(canvas.width!==targetWidth)canvas.width=targetWidth;if(canvas.height!==targetHeight)canvas.height=targetHeight;
@@ -1000,10 +1062,294 @@
       ctx.restore();drawRoundedRect(x,y,w,h,radius,null,enabled?'rgba(255,255,255,.12)':'rgba(255,255,255,.04)',1);
     }
     function drawSeoulStagePreview(...args){drawStageImagePreview(...args);}
+
     function drawStageSelect(){
-      const cityId=game.currentCity,city=CITIES[cityId],stages=STAGES[cityId],themes={seoul:'SEOUL_GENERAL_NIGHT',newyork:'newyork10',tokyo:'tokyo10',paris:'parisMorning',dubai:'dubaiDay',singapore:'singaporeDay'};drawCityBackdrop(themes[cityId]);ctx.fillStyle=cityId==='seoul'?'rgba(10,12,16,.2)':cityId==='newyork'?'rgba(10,12,16,.14)':cityId==='tokyo'?'rgba(10,12,16,.2)':'rgba(10,12,16,.44)';ctx.fillRect(0,0,WORLD.width,WORLD.height);drawBackButton('stageBack');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=COLORS.white;ctx.font='780 28px ui-sans-serif, sans-serif';ctx.fillText(city.name,24,84);ctx.fillStyle=COLORS.muted;ctx.font='600 10px ui-sans-serif, sans-serif';ctx.fillText(city.sub,25,122);const unlockedCount=progress.unlocked[cityId]||0;canvas.setAttribute('data-stage-select-background',themes[cityId]);
-      stages.forEach((stage,index)=>{const col=index%2,row=Math.floor(index/2),x=24+col*178,y=174+row*94,w=164,h=78,unlocked=index<unlockedCount,stars=progress.stars[stage.id]||0,label=`${city.name} ${String(index+1).padStart(2,'0')}`;drawRoundedRect(x,y,w,h,14,unlocked?'rgba(255,255,255,.05)':'rgba(255,255,255,.018)',unlocked?'rgba(255,255,255,.17)':'rgba(255,255,255,.06)',1);ctx.textAlign='left';ctx.fillStyle=unlocked?COLORS.white:'#545b64';ctx.font=`750 ${city.name.length>7?8.4:9.4}px ui-sans-serif, sans-serif`;ctx.fillText(label,x+14,y+12);ctx.fillStyle=unlocked?COLORS.muted:'#484f57';ctx.font=`650 ${(stage.region||stage.title).length>14?6.2:7.4}px ui-sans-serif, sans-serif`;ctx.fillText(stage.region||stage.title,x+14,y+38);ctx.textAlign='right';ctx.fillStyle=stars?COLORS.finish:'#4a5159';ctx.font='650 8px ui-sans-serif, sans-serif';ctx.fillText(unlocked?(stars?`${'★'.repeat(stars)}${'☆'.repeat(3-stars)}`:'☆☆☆'):'LOCK',x+w-14,y+13);if(STAGE_IMAGE_BACKGROUNDS[stage.background])drawStageImagePreview(stage.background,x+98,y+38,50,25,unlocked);else drawCityPreview(cityId,x+98,y+36,50,27,unlocked);if(unlocked)registerHitArea(x,y,w,h,`stage:${cityId}:${index}`);});
-      ctx.textAlign='center';ctx.fillStyle=COLORS.muted;ctx.font='600 9px ui-sans-serif, sans-serif';ctx.fillText(`${unlockedCount}/${stages.length} STAGES OPEN`,WORLD.width/2,748);
+      const cityId=game.currentCity;
+      const city=CITIES[cityId];
+      const stages=STAGES[cityId];
+
+      const themes={
+        seoul:'SEOUL_GENERAL_NIGHT',
+        newyork:'newyork10',
+        tokyo:'tokyo10',
+        paris:'parisMorning',
+        dubai:'dubaiDay',
+        singapore:'singaporeDay'
+      };
+
+      drawCityBackdrop(themes[cityId]);
+
+      ctx.fillStyle=
+        cityId==='seoul'
+          ?'rgba(10,12,16,.20)'
+          :cityId==='newyork'
+          ?'rgba(10,12,16,.14)'
+          :cityId==='tokyo'
+          ?'rgba(10,12,16,.20)'
+          :'rgba(10,12,16,.44)';
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      drawBackButton('stageBack');
+
+      const visibleHeight=Math.min(
+        WORLD.height,
+        viewport.visibleLogicalHeight
+      );
+
+      ctx.textAlign='left';
+      ctx.textBaseline='top';
+
+      ctx.fillStyle=COLORS.white;
+      ctx.font='780 28px ui-sans-serif, sans-serif';
+      ctx.fillText(
+        city.name,
+        24,
+        84
+      );
+
+      ctx.fillStyle=COLORS.muted;
+      ctx.font='600 10px ui-sans-serif, sans-serif';
+      ctx.fillText(
+        city.sub,
+        25,
+        122
+      );
+
+      const unlockedCount=
+        progress.unlocked[cityId]||0;
+
+      const columns=2;
+      const rows=Math.ceil(
+        stages.length/columns
+      );
+
+      const cardX=24;
+      const columnGap=14;
+      const cardWidth=
+        (
+          WORLD.width-
+          cardX*2-
+          columnGap
+        )/2;
+
+      const startY=154;
+      const bottomReserve=42;
+      const rowGap=9;
+
+      // 브라우저 주소창 때문에 실제 세로 화면이 짧아져도
+      // 카드가 잘리지 않도록 자동 축소.
+      const availableForCards=
+        Math.max(
+          280,
+          visibleHeight-
+          startY-
+          bottomReserve-
+          rowGap*(rows-1)
+        );
+
+      const cardHeight=
+        clamp(
+          availableForCards/rows,
+          56,
+          78
+        );
+
+      const rowStep=
+        cardHeight+
+        rowGap;
+
+      stages.forEach(
+        (stage,index)=>{
+          const col=index%2;
+          const row=Math.floor(index/2);
+
+          const x=
+            cardX+
+            col*(
+              cardWidth+
+              columnGap
+            );
+
+          const y=
+            startY+
+            row*rowStep;
+
+          const w=cardWidth;
+          const h=cardHeight;
+
+          const unlocked=
+            index<unlockedCount;
+
+          const stars=
+            progress.stars[stage.id]||0;
+
+          const label=
+            `${city.name} ${String(index+1).padStart(2,'0')}`;
+
+          drawRoundedRect(
+            x,
+            y,
+            w,
+            h,
+            13,
+            unlocked
+              ?'rgba(255,255,255,.05)'
+              :'rgba(255,255,255,.018)',
+            unlocked
+              ?'rgba(255,255,255,.17)'
+              :'rgba(255,255,255,.06)',
+            1
+          );
+
+          ctx.textAlign='left';
+
+          ctx.fillStyle=
+            unlocked
+              ?COLORS.white
+              :'#545b64';
+
+          ctx.font=
+            `750 ${
+              city.name.length>7
+                ?8.4
+                :9.4
+            }px ui-sans-serif, sans-serif`;
+
+          ctx.fillText(
+            label,
+            x+13,
+            y+11
+          );
+
+          const region=
+            stage.region||
+            stage.title;
+
+          ctx.fillStyle=
+            unlocked
+              ?COLORS.muted
+              :'#484f57';
+
+          ctx.font=
+            `650 ${
+              region.length>14
+                ?6.2
+                :7.3
+            }px ui-sans-serif, sans-serif`;
+
+          ctx.fillText(
+            region,
+            x+13,
+            y+35
+          );
+
+          ctx.textAlign='right';
+
+          ctx.fillStyle=
+            stars
+              ?COLORS.finish
+              :'#4a5159';
+
+          ctx.font=
+            '650 8px ui-sans-serif, sans-serif';
+
+          ctx.fillText(
+            unlocked
+              ?(
+                stars
+                  ?`${'★'.repeat(stars)}${'☆'.repeat(3-stars)}`
+                  :'☆☆☆'
+              )
+              :'LOCK',
+            x+w-12,
+            y+12
+          );
+
+          const previewW=50;
+          const previewH=
+            Math.min(
+              25,
+              Math.max(
+                20,
+                h-47
+              )
+            );
+
+          const previewX=
+            x+w-previewW-14;
+
+          const previewY=
+            y+h-previewH-9;
+
+          if(
+            STAGE_IMAGE_BACKGROUNDS[
+              stage.background
+            ]
+          ){
+            drawStageImagePreview(
+              stage.background,
+              previewX,
+              previewY,
+              previewW,
+              previewH,
+              unlocked
+            );
+          }else{
+            drawCityPreview(
+              cityId,
+              previewX,
+              previewY,
+              previewW,
+              previewH,
+              unlocked
+            );
+          }
+
+          if(unlocked){
+            registerHitArea(
+              x,
+              y,
+              w,
+              h,
+              `stage:${cityId}:${index}`
+            );
+          }
+        }
+      );
+
+      const footerY=
+        Math.min(
+          visibleHeight-20,
+          startY+
+          rows*rowStep+
+          7
+        );
+
+      ctx.textAlign='center';
+      ctx.fillStyle='rgba(211,216,222,.62)';
+      ctx.font='600 8.5px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        `${unlockedCount}/${stages.length} STAGES OPEN`,
+        WORLD.width/2,
+        footerY
+      );
+
+      canvas.setAttribute(
+        'data-stage-select-background',
+        themes[cityId]
+      );
+
+      canvas.setAttribute(
+        'data-stage-select-layout',
+        'mobile-width-fill'
+      );
     }
     function drawInfiniteMapPreview(mapId,x,y,w,h,enabled){
       ctx.save();roundedRectPath(ctx,x,y,w,h,12);ctx.clip();ctx.globalAlpha=enabled?1:.34;
@@ -1142,181 +1488,296 @@
     game.selfTests=runCollisionSelfTests();window.BOUNCE_SELF_TESTS=Object.freeze({...game.selfTests});canvas.setAttribute('data-self-tests',JSON.stringify(game.selfTests));
     function applyLocalPreviewQuery(){try{if(!['localhost','127.0.0.1'].includes(location.hostname))return;const params=new URLSearchParams(location.search),stageId=params.get('previewStage'),stageSelectCity=params.get('previewStageSelect'),infiniteValue=params.get('previewInfinite'),hideHud=params.get('hideHud')==='1';if(CITY_ORDER.includes(stageSelectCity)){game.currentCity=stageSelectCity;game.currentStage=null;game.gameMode='stage';game.screen='stageSelect';game.phase='preview';canvas.setAttribute('data-preview',`STAGE_SELECT_${stageSelectCity.toUpperCase()}`);return;}if(params.get('previewWorldSelect')==='1'){game.currentStage=null;game.gameMode=null;game.screen='worldSelect';game.phase='preview';canvas.setAttribute('data-preview','WORLD_SELECT');return;}if(params.get('previewAchievement')==='toast'){effects.achievementToast={definition:CITY_COMPLETION_ACHIEVEMENTS.seoul,life:3,maxLife:3};canvas.setAttribute('data-preview','ACHIEVEMENT_TOAST');}if(stageId){for(const cityId of CITY_ORDER){const index=STAGES[cityId].findIndex(stage=>stage.id===stageId);if(index<0)continue;startStage(cityId,index);const climb=Math.max(0,Number(params.get('previewCamera'))||0),wormholeTest=params.get('wormholeTest')==='1',liveMotion=params.get('previewLive')==='1',meteorPreview=params.get('previewMeteor');camera.y=-climb;camera.targetY=camera.y;ball.y=camera.y+520;ball.previousY=ball.y;game.previewHideHud=hideHud;if(params.get('previewCollectStar')==='1'&&worldState.stageStar)collectStageStar();if(meteorPreview&&worldState.stageMeteors.length){const schedule=worldState.stageMeteors[0];if(meteorPreview==='warning'){schedule.state='warning';schedule.warningElapsed=schedule.warningTime*.55;schedule.x=cityId==='tokyo'?(schedule.vx>0?12:WORLD.width-12):schedule.x;schedule.y=camera.y+90;}else if(meteorPreview==='active'){const object=spawnStageMeteor(schedule);if(object){object.x=92;object.y=camera.y+238;object.previousX=object.x-object.velocityX*.14;object.previousY=object.y-object.velocityY*.14;object.renderVX=object.velocityX;object.renderVY=object.velocityY;}}}if(wormholeTest&&worldState.wormholes.length){const entry=worldState.wormholes[0];ball.x=entry.x-62;ball.y=entry.y;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=620;ball.vy=0;game.lineDrawnThisRun=true;game.phase='playing';}else game.phase=liveMotion?'playing':'preview';canvas.setAttribute('data-preview',stageId);return;}}if(infiniteValue!==null){startInfinite();const climb=Math.max(0,Number(infiniteValue)||0),bounces=Math.max(0,Number(params.get('previewBounces'))||0);game.totalClimbDistance=climb;game.highestCameraY=-climb;game.altitude=altitudeFromClimb(climb);game.displayAltitude=game.altitude;metrics.successfulBounces=bounces;for(const phase of INFINITE_PHASES)if(canEnterInfinitePhase(phase,game.altitude,bounces))game.infinitePhase=phase.id;camera.y=-climb;camera.targetY=camera.y;ball.y=camera.y+520;ball.previousY=ball.y;if(params.get('satellite')==='1')createWorldObject({type:'satellite',x:139,y:camera.y+300,w:112,h:34,movePhase:0},null,true);game.previewHideHud=hideHud;game.phase='preview';canvas.setAttribute('data-preview',`INFINITE_${climb}`);}}catch(error){recordRuntimeError();}}
         // =========================================================================
-    // FIRST-RUN GUIDED TUTORIAL
+
+    // FIRST-RUN GUIDED TUTORIAL V2
     // =========================================================================
 
-    const FIRST_RUN_TUTORIAL_KEY = 'bounce_first_tutorial_complete';
+    // v2 키를 사용해서 기존 구형 튜토리얼을 본 기기에서도
+    // 새 튜토리얼을 한 번 다시 확인할 수 있게 한다.
+    const FIRST_RUN_TUTORIAL_KEY=
+      'bounce_first_tutorial_complete_v2';
 
-    const FIRST_RUN_TUTORIAL_STEPS = Object.freeze([
-      Object.freeze({
-        id: 'normalWall',
-        type: 'wall',
-        x: 0,
-        y: -220,
-        w: 248,
-        h: 18,
-        title: '하얀 벽',
-        description: '부딪혀도 죽지 않습니다.\n공이 벽에 튕겨 나가므로 다음 각도를 생각하세요.'
-      }),
 
-      Object.freeze({
-        id: 'deathWall',
-        type: 'deathwall',
-        x: 230,
-        y: -620,
-        w: 160,
-        h: 22,
-        title: '빨간 벽',
-        description: '위험한 벽입니다.\n공이 닿으면 즉시 실패합니다.'
-      }),
+    const FIRST_RUN_TUTORIAL_STEPS=
+      Object.freeze([
 
-      Object.freeze({
-        id: 'jumpWall',
-        type: 'jumpwall',
-        x: 0,
-        y: -1010,
-        w: 220,
-        h: 16,
-        title: '파란 벽',
-        description: '점프 벽입니다.\n위에서 닿으면 공이 강하게 튀어 오릅니다.'
-      })
-    ]);
+        Object.freeze({
+          id:'normalWall',
+          type:'wall',
+          x:0,
+          y:-220,
+          w:225,
+          h:18,
 
-    const firstRunTutorial = {
-      enabled: safeGet(FIRST_RUN_TUTORIAL_KEY, '0') !== '1',
+          title:'흰색 벽',
+
+          description:[
+            '흰색 벽은 기본 벽입니다.',
+            '부딪히면 일반적인 탄성으로 튕겨 나갑니다.'
+          ]
+        }),
+
+
+        Object.freeze({
+          id:'deathWall',
+          type:'deathwall',
+          x:225,
+          y:-610,
+          w:165,
+          h:22,
+
+          title:'빨간 벽',
+
+          description:[
+            '빨간 벽은 위험한 벽입니다.',
+            '공이 닿으면 즉시 실패합니다.'
+          ]
+        }),
+
+
+        Object.freeze({
+          id:'jumpWall',
+          type:'jumpwall',
+          x:0,
+          y:-1010,
+          w:220,
+          h:16,
+
+          title:'파란 벽',
+
+          description:[
+            '파란 벽은 점프 벽입니다.',
+            '위·아래 어느 방향에서 닿아도',
+            '공이 강하게 튕겨 나갑니다.'
+          ]
+        })
+      ]);
+
+
+    const firstRunTutorial={
+      enabled:
+        safeGet(
+          FIRST_RUN_TUTORIAL_KEY,
+          '0'
+        )!=='1',
 
       state:
-        safeGet(FIRST_RUN_TUTORIAL_KEY, '0') !== '1'
-          ? 'homePrompt'
-          : 'done',
+        safeGet(
+          FIRST_RUN_TUTORIAL_KEY,
+          '0'
+        )!=='1'
+          ?'intro'
+          :'done',
 
-      nextStep: 0,
-      currentStep: -1,
+      nextStep:0,
+      currentStep:-1,
 
-      finishTimer: 0,
-      fade: 0,
+      finishTimer:0,
+      fade:0,
 
-      objects: new Map()
+      objects:new Map()
     };
 
 
-    // -------------------------------------------------------------------------
-    // Tutorial geometry
-    // -------------------------------------------------------------------------
+    // 테스트할 때 콘솔에서
+    // BOUNCER_RESET_TUTORIAL()
+    // 실행하면 처음부터 다시 볼 수 있음.
+    window.BOUNCER_RESET_TUTORIAL=
+      function(){
+        safeSet(
+          FIRST_RUN_TUTORIAL_KEY,
+          '0'
+        );
 
-    function tutorialHomeHole() {
-      const logo = homeLogoMetrics();
-
-      return {
-        x: logo.ballX,
-        y: logo.y + 48,
-        r: 78
+        location.reload();
       };
+
+
+    // =========================================================================
+    // Tutorial helpers
+    // =========================================================================
+
+    function tutorialHomeSplitY(){
+      const logo=
+        homeLogoMetrics();
+
+      // 로고의 공 바로 밑부터
+      // 화면 아래 전체를 조작 가능 영역으로 둔다.
+      return clamp(
+        logo.y+55,
+        225,
+        275
+      );
     }
 
 
-    function clearWorldForFirstRunTutorial() {
-      worldState.objects.length = 0;
-      worldState.shards.length = 0;
-      worldState.stageStar = null;
-      worldState.stageMeteors.length = 0;
-      worldState.wormholes.length = 0;
-      worldState.wormholePairs.clear();
-      worldState.segments.length = 0;
+    function clearWorldForFirstRunTutorial(){
+      worldState.objects.length=0;
+      worldState.shards.length=0;
 
-      worldState.generatedTopY = 0;
-      worldState.objectSerial = 0;
-      worldState.segmentSerial = 0;
-      worldState.lastTemplateId = '';
-      worldState.environmentPhase = 'sky';
-      worldState.environmentMisses = 0;
-      worldState.finishY = null;
+      worldState.stageStar=null;
+      worldState.stageMeteors.length=0;
+
+      worldState.wormholes.length=0;
+      worldState.wormholePairs.clear();
+
+      worldState.segments.length=0;
+
+      worldState.generatedTopY=0;
+      worldState.objectSerial=0;
+      worldState.segmentSerial=0;
+
+      worldState.lastTemplateId='';
+      worldState.environmentPhase='sky';
+      worldState.environmentMisses=0;
+
+      worldState.finishY=null;
 
       firstRunTutorial.objects.clear();
     }
 
 
-    function setupFirstRunTutorialWorld() {
+    function setupFirstRunTutorialWorld(){
       clearWorldForFirstRunTutorial();
 
-      worldState.theme = 'tutorial';
+      worldState.theme='tutorial';
 
-      for (const step of FIRST_RUN_TUTORIAL_STEPS) {
-        const object = createWorldObject({
-          type: step.type,
-          x: step.x,
-          y: step.y,
-          w: step.w,
-          h: step.h
-        }, null, true);
+      for(
+        const step of
+        FIRST_RUN_TUTORIAL_STEPS
+      ){
+        const object=
+          createWorldObject(
+            {
+              type:step.type,
+              x:step.x,
+              y:step.y,
+              w:step.w,
+              h:step.h
+            },
+            null,
+            true
+          );
 
-        firstRunTutorial.objects.set(step.id, object);
+        firstRunTutorial.objects.set(
+          step.id,
+          object
+        );
       }
     }
 
 
-    // -------------------------------------------------------------------------
-    // Start tutorial from Home
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Intro
+    // =========================================================================
 
-    function startFirstRunTutorialFromHome() {
-      firstRunTutorial.state = 'running';
-      firstRunTutorial.nextStep = 0;
-      firstRunTutorial.currentStep = -1;
-      firstRunTutorial.finishTimer = 0;
-      firstRunTutorial.fade = 0;
+    function advanceFirstRunTutorialIntro(){
+      if(
+        !firstRunTutorial.enabled ||
+        firstRunTutorial.state!=='intro'
+      ){
+        return;
+      }
 
-      game.gameMode = 'tutorial';
-      game.currentStage = null;
+      firstRunTutorial.state=
+        'homePrompt';
 
-      game.screen = 'playing';
-      game.phase = 'homeStarting';
+      audio.ui();
 
-      game.homeLaunch = true;
-      game.homeTransition = HOME_LAYOUT.transitionDuration;
-      game.homeTransitionDuration = HOME_LAYOUT.transitionDuration;
-
-      // 기존 "DRAG A LINE" 안내는 튜토리얼에선 사용하지 않음.
-      game.tutorialAlpha = 0;
-      game.hasEverDrawn = true;
-      game.previewHideHud = true;
-
-      game.altitude = 0;
-      game.displayAltitude = 0;
-      game.totalClimbDistance = 0;
-      game.highestCameraY = 0;
-      game.infinitePhase = 'sky';
-
-      ball.previousX = ball.x;
-      ball.previousY = ball.y;
-
-      ball.vx = 0;
-      ball.vy = 0;
-      ball.wormholeCooldown = 0;
-
-      camera.y = 0;
-      camera.targetY = 0;
-
-      setupFirstRunTutorialWorld();
-
-      canvas.setAttribute('data-tutorial', 'running');
+      canvas.setAttribute(
+        'data-tutorial',
+        'homePrompt'
+      );
     }
 
 
-    // -------------------------------------------------------------------------
-    // Pause when a tutorial object enters view
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Start actual tutorial
+    // =========================================================================
 
-    function pauseFirstRunTutorial(stepIndex) {
-      const step = FIRST_RUN_TUTORIAL_STEPS[stepIndex];
+    function startFirstRunTutorialFromHome(){
+      firstRunTutorial.state='running';
 
-      if (!step) return;
+      firstRunTutorial.nextStep=0;
+      firstRunTutorial.currentStep=-1;
 
-      firstRunTutorial.state = 'pause';
-      firstRunTutorial.currentStep = stepIndex;
+      firstRunTutorial.finishTimer=0;
+      firstRunTutorial.fade=0;
 
-      game.phase = 'tutorialPause';
-      game.activeLine = null;
+      game.gameMode='tutorial';
+      game.currentStage=null;
+
+      game.screen='playing';
+      game.phase='homeStarting';
+
+      game.homeLaunch=true;
+
+      game.homeTransition=
+        HOME_LAYOUT.transitionDuration;
+
+      game.homeTransitionDuration=
+        HOME_LAYOUT.transitionDuration;
+
+      // 기존 DRAG A LINE 글씨 제거
+      game.tutorialAlpha=0;
+
+      game.hasEverDrawn=true;
+      game.lineDrawnThisRun=true;
+
+      game.previewHideHud=true;
+
+      game.altitude=0;
+      game.displayAltitude=0;
+
+      game.totalClimbDistance=0;
+      game.highestCameraY=0;
+
+      game.infinitePhase='sky';
+
+      ball.previousX=ball.x;
+      ball.previousY=ball.y;
+
+      ball.vx=0;
+      ball.vy=0;
+
+      ball.wormholeCooldown=0;
+
+      camera.y=0;
+      camera.targetY=0;
+
+      setupFirstRunTutorialWorld();
+
+      canvas.setAttribute(
+        'data-tutorial',
+        'running'
+      );
+    }
+
+
+    // =========================================================================
+    // Wall pause
+    // =========================================================================
+
+    function pauseFirstRunTutorial(
+      stepIndex
+    ){
+      const step=
+        FIRST_RUN_TUTORIAL_STEPS[
+          stepIndex
+        ];
+
+      if(!step){
+        return;
+      }
+
+      firstRunTutorial.state='pause';
+
+      firstRunTutorial.currentStep=
+        stepIndex;
+
+      game.phase='tutorialPause';
+
+      game.activeLine=null;
 
       abortDrawing();
 
@@ -1329,42 +1790,41 @@
     }
 
 
-    function updateFirstRunTutorial(dt) {
+    function updateFirstRunTutorial(dt){
 
       // -----------------------------------------------------
-      // RUNNING
+      // 장애물이 위에서 화면 안으로 들어오면
+      // 즉시 게임을 정지하고 설명.
       // -----------------------------------------------------
 
-      if (
+      if(
         firstRunTutorial.enabled &&
-        firstRunTutorial.state === 'running' &&
-        game.gameMode === 'tutorial' &&
-        game.screen === 'playing' &&
-        game.phase === 'playing'
-      ) {
-        const step =
+        firstRunTutorial.state==='running' &&
+        game.gameMode==='tutorial' &&
+        game.screen==='playing' &&
+        game.phase==='playing'
+      ){
+        const step=
           FIRST_RUN_TUTORIAL_STEPS[
             firstRunTutorial.nextStep
           ];
 
-        if (step) {
-          const object =
-            firstRunTutorial.objects.get(step.id);
+        if(step){
+          const object=
+            firstRunTutorial.objects.get(
+              step.id
+            );
 
-          if (object) {
-            const screenY =
-              worldToScreenY(object.y);
+          if(object){
+            const screenY=
+              worldToScreenY(
+                object.y
+              );
 
-            /*
-              장애물이 위쪽에서 화면으로 들어오는 순간 멈춤.
-
-              공은 보통 화면 Y 300 부근에서 움직이므로
-              벽이 충분히 위에 있을 때 미리 설명한다.
-            */
-            if (
-              screenY >= 110 &&
-              screenY <= 265
-            ) {
+            if(
+              screenY>=105 &&
+              screenY<=275
+            ){
               pauseFirstRunTutorial(
                 firstRunTutorial.nextStep
               );
@@ -1375,41 +1835,43 @@
 
 
       // -----------------------------------------------------
-      // FINISH → 화면 어둡게
+      // 모두 설명했으면 화면을 천천히 어둡게
       // -----------------------------------------------------
 
-      if (
-        firstRunTutorial.state === 'finish'
-      ) {
-        firstRunTutorial.finishTimer += dt;
+      if(
+        firstRunTutorial.state==='finish'
+      ){
+        firstRunTutorial.finishTimer+=dt;
 
-        const delay = 0.22;
-        const fadeDuration = 0.68;
+        const delay=.18;
+        const fadeDuration=.72;
 
-        firstRunTutorial.fade = clamp(
-          (
-            firstRunTutorial.finishTimer -
-            delay
-          ) / fadeDuration,
-          0,
-          1
-        );
+        firstRunTutorial.fade=
+          clamp(
+            (
+              firstRunTutorial.finishTimer-
+              delay
+            )/
+            fadeDuration,
+            0,
+            1
+          );
 
-        if (
-          firstRunTutorial.fade >= 1
-        ) {
+        if(
+          firstRunTutorial.fade>=1
+        ){
           safeSet(
             FIRST_RUN_TUTORIAL_KEY,
             '1'
           );
 
-          firstRunTutorial.enabled = false;
-          firstRunTutorial.state = 'returning';
-          firstRunTutorial.fade = 1;
+          firstRunTutorial.enabled=false;
+          firstRunTutorial.state='returning';
+          firstRunTutorial.fade=1;
 
           prepareHomeIdle();
 
-          game.tutorialAlpha = 0;
+          game.tutorialAlpha=0;
 
           canvas.setAttribute(
             'data-tutorial',
@@ -1418,180 +1880,187 @@
         }
       }
 
-
-      // -----------------------------------------------------
-      // HOME 화면으로 돌아온 뒤 페이드 인
-      // -----------------------------------------------------
-
-      else if (
-        firstRunTutorial.state === 'returning'
-      ) {
-        firstRunTutorial.fade =
+      else if(
+        firstRunTutorial.state===
+          'returning'
+      ){
+        firstRunTutorial.fade=
           Math.max(
             0,
-            firstRunTutorial.fade -
-            dt / 0.55
+            firstRunTutorial.fade-
+              dt/.55
           );
 
-        if (
-          firstRunTutorial.fade <= 0
-        ) {
-          firstRunTutorial.state = 'done';
+        if(
+          firstRunTutorial.fade<=0
+        ){
+          firstRunTutorial.state='done';
         }
       }
     }
 
 
     // =========================================================================
-    // Tutorial overlay rendering
+    // Overlay rendering
     // =========================================================================
 
-    function drawTutorialDarkMaskCircle(
-      cx,
-      cy,
-      radius,
-      alpha = 0.68
-    ) {
+    function drawTutorialIntroOverlay(){
       ctx.save();
 
-      ctx.fillStyle =
-        `rgba(33,37,43,${alpha})`;
+      // 첫 화면은 완전한 회색
+      ctx.fillStyle='#4A4F54';
 
-      ctx.beginPath();
-
-      ctx.rect(
+      ctx.fillRect(
         0,
         0,
         WORLD.width,
         WORLD.height
       );
 
-      ctx.arc(
-        cx,
-        cy,
-        radius,
-        0,
-        Math.PI * 2
-      );
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
 
-      ctx.fill('evenodd');
+      ctx.fillStyle='#FFFFFF';
 
-      ctx.restore();
-    }
-
-
-    function drawTutorialDarkMaskRect(
-      x,
-      y,
-      w,
-      h,
-      alpha = 0.69
-    ) {
-      ctx.save();
-
-      ctx.fillStyle =
-        `rgba(30,34,40,${alpha})`;
-
-      ctx.beginPath();
-
-      ctx.rect(
-        0,
-        0,
-        WORLD.width,
-        WORLD.height
-      );
-
-      ctx.rect(
-        x,
-        y,
-        w,
-        h
-      );
-
-      ctx.fill('evenodd');
-
-      ctx.restore();
-    }
-
-
-    function drawTutorialHomePrompt() {
-      if (
-        game.screen !== 'menu'
-      ) return;
-
-      const hole =
-        tutorialHomeHole();
-
-      drawTutorialDarkMaskCircle(
-        hole.x,
-        hole.y,
-        hole.r,
-        0.67
-      );
-
-
-      // Spotlight outline
-      ctx.save();
-
-      ctx.strokeStyle =
-        'rgba(255,255,255,.72)';
-
-      ctx.lineWidth = 1.5;
-
-      ctx.beginPath();
-
-      ctx.arc(
-        hole.x,
-        hole.y,
-        hole.r,
-        0,
-        Math.PI * 2
-      );
-
-      ctx.stroke();
-
-
-      // Main instruction
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-
-      ctx.fillStyle = '#FFFFFF';
-
-      ctx.font =
-        '750 17px ui-sans-serif, sans-serif';
+      ctx.font=
+        '760 21px ui-sans-serif, sans-serif';
 
       ctx.fillText(
-        '평평한 선을 그으세요',
-        WORLD.width / 2,
-        365
+        '안녕하세요',
+        WORLD.width/2,
+        330
       );
 
+      ctx.font=
+        '700 15px ui-sans-serif, sans-serif';
 
-      ctx.fillStyle =
-        'rgba(255,255,255,.66)';
+      ctx.fillText(
+        '지금부터 BOUNCER의',
+        WORLD.width/2,
+        374
+      );
 
-      ctx.font =
+      ctx.fillText(
+        '튜토리얼을 시작할게요',
+        WORLD.width/2,
+        397
+      );
+
+      ctx.fillStyle=
+        'rgba(255,255,255,.62)';
+
+      ctx.font=
         '600 10px ui-sans-serif, sans-serif';
 
       ctx.fillText(
-        '원 안에서 좌우로 드래그',
-        WORLD.width / 2,
-        392
+        '화면을 클릭하여 넘어가기',
+        WORLD.width/2,
+        455
+      );
+
+      ctx.restore();
+    }
+
+
+    function drawTutorialHomePrompt(){
+      if(
+        game.screen!=='menu'
+      ){
+        return;
+      }
+
+      const splitY=
+        tutorialHomeSplitY();
+
+      ctx.save();
+
+      // 위쪽만 반투명 회색으로 가림.
+      // splitY 아래는 완전히 열어서
+      // 아래 전체 영역에서 스와이프 가능.
+      ctx.fillStyle=
+        'rgba(37,41,46,.67)';
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        splitY
+      );
+
+      // 경계가 딱 잘린 것처럼 보이지 않게
+      const edge=
+        ctx.createLinearGradient(
+          0,
+          splitY-32,
+          0,
+          splitY+18
+        );
+
+      edge.addColorStop(
+        0,
+        'rgba(37,41,46,0)'
+      );
+
+      edge.addColorStop(
+        1,
+        'rgba(37,41,46,.13)'
+      );
+
+      ctx.fillStyle=edge;
+
+      ctx.fillRect(
+        0,
+        splitY-32,
+        WORLD.width,
+        50
+      );
+
+
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+
+      ctx.fillStyle='#FFFFFF';
+
+      ctx.font=
+        '750 15px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        '로고의 원 밑에 선을 그어',
+        WORLD.width/2,
+        splitY+69
+      );
+
+      ctx.fillText(
+        '떨어지는 원을 튕겨보세요',
+        WORLD.width/2,
+        splitY+91
+      );
+
+
+      ctx.fillStyle=
+        'rgba(255,255,255,.58)';
+
+      ctx.font=
+        '600 9px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        '아래 영역에서 좌우로 스와이프',
+        WORLD.width/2,
+        splitY+121
       );
 
       ctx.restore();
 
 
-      // 사용자가 그리고 있는 선은 마스크 위에서 다시 밝게 표시
-      if (
+      if(
         input.drawing &&
         input.start &&
         input.end
-      ) {
+      ){
         drawPlayerLine(
           {
-            a: input.start,
-            b: input.end
+            a:input.start,
+            b:input.end
           },
           1,
           true
@@ -1600,97 +2069,144 @@
     }
 
 
-    function drawTutorialPauseOverlay() {
-      const step =
+    function drawTutorialPauseOverlay(){
+      const step=
         FIRST_RUN_TUTORIAL_STEPS[
           firstRunTutorial.currentStep
         ];
 
-      if (!step) return;
+      if(!step){
+        return;
+      }
 
-      const object =
+      const object=
         firstRunTutorial.objects.get(
           step.id
         );
 
-      if (!object) return;
+      if(!object){
+        return;
+      }
 
-      const screenY =
-        worldToScreenY(object.y);
+      const screenY=
+        worldToScreenY(
+          object.y
+        );
 
-      const paddingX = 14;
-      const paddingY = 18;
+      const paddingX=14;
+      const paddingY=18;
 
-      const holeX =
+      const holeX=
         clamp(
-          object.x - paddingX,
+          object.x-paddingX,
           0,
           WORLD.width
         );
 
-      const holeY =
+      const holeY=
         clamp(
-          screenY - paddingY,
+          screenY-paddingY,
           0,
           WORLD.height
         );
 
-      const holeW =
+      const holeW=
         Math.min(
-          WORLD.width - holeX,
-          object.w + paddingX * 2
+          WORLD.width-holeX,
+          object.w+
+            paddingX*2
         );
 
-      const holeH =
-        object.h + paddingY * 2;
+      const holeH=
+        object.h+
+        paddingY*2;
 
 
-      drawTutorialDarkMaskRect(
+      ctx.save();
+
+      // 전체 화면은 어둡게
+      ctx.fillStyle=
+        'rgba(28,32,37,.70)';
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      // 설명 중인 벽은 다시 선명하게 그림
+      if(step.type==='wall'){
+        drawWall(
+          object,
+          screenY
+        );
+      }
+
+      else if(
+        step.type==='deathwall'
+      ){
+        drawDeathWall(
+          object,
+          screenY
+        );
+      }
+
+      else if(
+        step.type==='jumpwall'
+      ){
+        drawBoost(
+          object,
+          screenY
+        );
+      }
+
+
+      ctx.strokeStyle=
+        step.type==='deathwall'
+          ?'rgba(255,121,100,.95)'
+          :step.type==='jumpwall'
+          ?'rgba(130,199,255,.95)'
+          :'rgba(255,255,255,.90)';
+
+      ctx.lineWidth=1.5;
+
+      roundedRectPath(
+        ctx,
         holeX,
         holeY,
         holeW,
         holeH,
-        0.70
+        8
       );
 
-
-      // Highlight
-      ctx.save();
-
-      ctx.strokeStyle =
-        step.type === 'deathwall'
-          ? 'rgba(255,121,100,.86)'
-          : step.type === 'jumpwall'
-          ? 'rgba(130,199,255,.9)'
-          : 'rgba(255,255,255,.82)';
-
-      ctx.lineWidth = 1.5;
-
-      ctx.strokeRect(
-        holeX,
-        holeY,
-        holeW,
-        holeH
-      );
+      ctx.stroke();
 
 
-      // 설명 카드
-      const visibleHeight =
+      const visibleHeight=
         Math.min(
           WORLD.height,
           viewport.visibleLogicalHeight
         );
 
-      const cardY =
-        clamp(
-          visibleHeight - 194,
-          430,
-          570
-        );
+      const cardW=
+        WORLD.width-56;
 
-      const cardX = 34;
-      const cardW = WORLD.width - 68;
-      const cardH = 132;
+      const cardH=
+        step.type==='jumpwall'
+          ?150
+          :136;
+
+      const cardX=28;
+
+      const cardY=
+        clamp(
+          visibleHeight-
+            cardH-
+            52,
+          385,
+          590
+        );
 
       drawRoundedRect(
         cardX,
@@ -1698,77 +2214,76 @@
         cardW,
         cardH,
         18,
-        'rgba(24,28,34,.92)',
+        'rgba(22,26,31,.95)',
         'rgba(255,255,255,.13)',
         1
       );
 
 
-      ctx.textAlign = 'left';
-      ctx.textBaseline = 'top';
+      ctx.textAlign='left';
+      ctx.textBaseline='top';
 
-      ctx.fillStyle =
-        step.type === 'deathwall'
-          ? '#FF7964'
-          : step.type === 'jumpwall'
-          ? '#82C7FF'
-          : '#FFFFFF';
+      ctx.fillStyle=
+        step.type==='deathwall'
+          ?'#FF7964'
+          :step.type==='jumpwall'
+          ?'#82C7FF'
+          :'#FFFFFF';
 
-      ctx.font =
+      ctx.font=
         '760 16px ui-sans-serif, sans-serif';
 
       ctx.fillText(
         step.title,
-        cardX + 20,
-        cardY + 19
+        cardX+20,
+        cardY+18
       );
 
 
-      ctx.fillStyle =
-        'rgba(247,248,250,.76)';
+      ctx.fillStyle=
+        'rgba(247,248,250,.79)';
 
-      ctx.font =
+      ctx.font=
         '600 10px ui-sans-serif, sans-serif';
 
-      const lines =
-        step.description.split('\n');
-
-      lines.forEach(
-        (line, index) => {
+      step.description.forEach(
+        (line,index)=>{
           ctx.fillText(
             line,
-            cardX + 20,
-            cardY + 50 + index * 18
+            cardX+20,
+            cardY+51+
+              index*18
           );
         }
       );
 
 
-      ctx.fillStyle =
+      ctx.fillStyle=
         'rgba(247,248,250,.48)';
 
-      ctx.font =
+      ctx.font=
         '650 8.5px ui-sans-serif, sans-serif';
 
       ctx.fillText(
         '진행하려면 선을 그으시오',
-        cardX + 20,
-        cardY + 105
+        cardX+20,
+        cardY+
+          cardH-
+          24
       );
 
       ctx.restore();
 
 
-      // 멈춘 상태에서도 그리는 선은 선명하게 표시
-      if (
+      if(
         input.drawing &&
         input.start &&
         input.end
-      ) {
+      ){
         drawPlayerLine(
           {
-            a: input.start,
-            b: input.end
+            a:input.start,
+            b:input.end
           },
           1,
           true
@@ -1777,33 +2292,34 @@
     }
 
 
-    function drawFirstRunTutorialOverlay() {
+    function drawFirstRunTutorialOverlay(){
 
-      if (
-        firstRunTutorial.state ===
-        'homePrompt'
-      ) {
+      if(
+        firstRunTutorial.state==='intro'
+      ){
+        drawTutorialIntroOverlay();
+      }
+
+      else if(
+        firstRunTutorial.state===
+          'homePrompt'
+      ){
         drawTutorialHomePrompt();
       }
 
-
-      else if (
-        firstRunTutorial.state ===
-        'pause'
-      ) {
+      else if(
+        firstRunTutorial.state==='pause'
+      ){
         drawTutorialPauseOverlay();
       }
 
-
-      else if (
-        firstRunTutorial.state ===
-          'finish' ||
-        firstRunTutorial.state ===
-          'returning'
-      ) {
+      else if(
+        firstRunTutorial.state==='finish' ||
+        firstRunTutorial.state==='returning'
+      ){
         ctx.save();
 
-        ctx.fillStyle =
+        ctx.fillStyle=
           `rgba(20,23,28,${
             firstRunTutorial.fade
           })`;
@@ -1821,145 +2337,95 @@
 
 
     // =========================================================================
-    // Patches to existing game behavior
+    // Input gate
     // =========================================================================
-
-
-    // -------------------------------------------------------------------------
-    // Tutorial에서는 서울 Infinite 배경이 선택되어 있어도
-    // 기본 HOME 하늘 배경만 사용.
-    // -------------------------------------------------------------------------
-
-    const originalDrawInfiniteOrigin =
-      drawInfiniteOrigin;
-
-    drawInfiniteOrigin =
-      function tutorialDrawInfiniteOrigin(
-        climb
-      ) {
-        if (
-          game.gameMode ===
-          'tutorial'
-        ) {
-          canvas.setAttribute(
-            'data-infinite-origin',
-            'SKY'
-          );
-
-          canvas.setAttribute(
-            'data-infinite-city-state',
-            'disabled'
-          );
-
-          canvas.setAttribute(
-            'data-infinite-city-y',
-            '0'
-          );
-
-          return;
-        }
-
-        return originalDrawInfiniteOrigin(
-          climb
-        );
-      };
-
-
-    // -------------------------------------------------------------------------
-    // 홈 최초 튜토리얼 중에는 원 안에서 시작한 터치만 허용
-    // -------------------------------------------------------------------------
 
     canvas.addEventListener(
       'pointerdown',
-      event => {
+      event=>{
 
-        if (
-          !firstRunTutorial.enabled ||
-          firstRunTutorial.state !==
-            'homePrompt' ||
-          game.screen !== 'menu'
-        ) {
+        if(
+          !firstRunTutorial.enabled
+        ){
           return;
         }
 
-        const point =
-          pointerToScreen(event);
 
-        const hole =
-          tutorialHomeHole();
-
-        const distance =
-          Math.hypot(
-            point.x - hole.x,
-            point.y - hole.y
-          );
-
-        if (
-          distance >
-          hole.r - 3
-        ) {
+        // 첫 회색 인사 화면:
+        // 아무 곳이나 한번 클릭하면 다음 설명.
+        if(
+          firstRunTutorial.state==='intro'
+        ){
           event.preventDefault();
           event.stopImmediatePropagation();
+
+          advanceFirstRunTutorialIntro();
+
+          return;
+        }
+
+
+        // 홈 설명에서는 로고 공 아래쪽 전체만 조작 가능.
+        if(
+          firstRunTutorial.state===
+            'homePrompt' &&
+          game.screen==='menu'
+        ){
+          const point=
+            pointerToScreen(
+              event
+            );
+
+          if(
+            point.y<
+              tutorialHomeSplitY()
+          ){
+            event.preventDefault();
+            event.stopImmediatePropagation();
+          }
         }
       },
       {
-        capture: true,
-        passive: false
+        capture:true,
+        passive:false
       }
     );
 
 
-    // -------------------------------------------------------------------------
-    // 홈 튜토리얼 선은 원 밖으로 나가지 않게 제한
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // 홈 튜토리얼 drawing endpoint
+    // =========================================================================
 
-    const originalUpdateDrawingEndpoint =
+    const originalUpdateDrawingEndpoint=
       updateDrawingEndpoint;
 
-    updateDrawingEndpoint =
+
+    updateDrawingEndpoint=
       function tutorialUpdateDrawingEndpoint(
         event
-      ) {
-        const result =
+      ){
+        const result=
           originalUpdateDrawingEndpoint(
             event
           );
 
-        if (
+
+        if(
           firstRunTutorial.enabled &&
-          firstRunTutorial.state ===
+          firstRunTutorial.state===
             'homePrompt' &&
-          game.screen === 'menu' &&
+          game.screen==='menu' &&
           input.endScreen
-        ) {
-          const hole =
-            tutorialHomeHole();
+        ){
+          const minimumY=
+            tutorialHomeSplitY()+2;
 
-          let dx =
-            input.endScreen.x -
-            hole.x;
-
-          let dy =
-            input.endScreen.y -
-            hole.y;
-
-          const distance =
-            Math.hypot(dx, dy);
-
-          const limit =
-            hole.r - 7;
-
-          if (
-            distance > limit
-          ) {
-            const scale =
-              limit / distance;
-
-            input.endScreen.x =
-              hole.x + dx * scale;
-
-            input.endScreen.y =
-              hole.y + dy * scale;
+          if(
+            input.endScreen.y<
+              minimumY
+          ){
+            input.endScreen.y=
+              minimumY;
 
             syncDrawingWorldPoints();
           }
@@ -1969,141 +2435,132 @@
       };
 
 
-    // -------------------------------------------------------------------------
-    // 설명 화면에서도 선 그리기 허용
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // 설명 화면에서도 선 그리기
+    // =========================================================================
 
-    const originalCanDrawLineNow =
+    const originalCanDrawLineNow=
       canDrawLineNow;
 
-    canDrawLineNow =
-      function tutorialCanDrawLineNow() {
-        return (
+
+    canDrawLineNow=
+      function tutorialCanDrawLineNow(){
+        return(
           originalCanDrawLineNow() ||
           (
-            firstRunTutorial.state ===
+            firstRunTutorial.state===
               'pause' &&
-            game.screen === 'playing' &&
-            game.phase ===
+            game.screen==='playing' &&
+            game.phase===
               'tutorialPause'
           )
         );
       };
 
 
-    // -------------------------------------------------------------------------
-    // HOME에서 첫 선을 그으면 일반 Infinite 대신 Tutorial 실행
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // 홈 첫 선 → Infinite가 아니라 Tutorial
+    // =========================================================================
 
-    const originalLaunchInfiniteFromHome =
+    const originalLaunchInfiniteFromHome=
       launchInfiniteFromHome;
 
-    launchInfiniteFromHome =
-      function tutorialLaunchFromHome() {
 
-        if (
+    launchInfiniteFromHome=
+      function tutorialLaunchFromHome(){
+
+        if(
           firstRunTutorial.enabled &&
-          firstRunTutorial.state ===
+          firstRunTutorial.state===
             'homePrompt'
-        ) {
+        ){
           startFirstRunTutorialFromHome();
-
           return;
         }
 
-        return originalLaunchInfiniteFromHome();
+        return(
+          originalLaunchInfiniteFromHome()
+        );
       };
 
 
-    // -------------------------------------------------------------------------
-    // Tutorial line commit behavior
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Tutorial line commit
+    // =========================================================================
 
-    const originalCommitCurrentDrawing =
+    const originalCommitCurrentDrawing=
       commitCurrentDrawing;
 
-    commitCurrentDrawing =
-      function tutorialCommitCurrentDrawing() {
 
-        const wasHomePrompt =
+    commitCurrentDrawing=
+      function tutorialCommitCurrentDrawing(){
+
+        const wasHomePrompt=
           firstRunTutorial.enabled &&
-          firstRunTutorial.state ===
+          firstRunTutorial.state===
             'homePrompt' &&
-          game.screen === 'menu';
+          game.screen==='menu';
 
 
-        const wasPause =
+        const wasPause=
           firstRunTutorial.enabled &&
-          firstRunTutorial.state ===
+          firstRunTutorial.state===
             'pause' &&
-          game.gameMode ===
-            'tutorial';
+          game.gameMode==='tutorial';
 
 
-        /*
-          처음 선은 수평에 가깝게 자동 보정.
-          사용자가 약간 비스듬히 그어도 튜토리얼 시작이 안정적으로 됨.
-        */
-        if (
+        // 첫 번째 선은 거의 평평한 선으로 자동 보정.
+        if(
           wasHomePrompt &&
           input.startScreen &&
           input.endScreen
-        ) {
-          const flatY =
+        ){
+          const flatY=
             (
-              input.startScreen.y +
+              input.startScreen.y+
               input.endScreen.y
-            ) / 2;
+            )/2;
 
-          input.startScreen.y =
+          input.startScreen.y=
             flatY;
 
-          input.endScreen.y =
+          input.endScreen.y=
             flatY;
 
           syncDrawingWorldPoints();
         }
 
 
-        const committed =
+        const committed=
           originalCommitCurrentDrawing();
 
-        if (!committed) {
+        if(!committed){
           return false;
         }
 
 
-        // ---------------------------------------------------
-        // 설명 화면에서 선을 그으면 다시 움직임
-        // ---------------------------------------------------
-
-        if (wasPause) {
-
-          const currentIndex =
+        if(wasPause){
+          const currentIndex=
             firstRunTutorial.currentStep;
 
-          const isLastStep =
-            currentIndex >=
-            FIRST_RUN_TUTORIAL_STEPS.length -
-              1;
+          const isLastStep=
+            currentIndex>=
+            FIRST_RUN_TUTORIAL_STEPS.length-1;
 
 
-          if (isLastStep) {
-
-            // 마지막 파란 벽 설명이 끝났으므로
-            // 게임을 다시 진행하지 않고 자연스럽게 종료.
-            firstRunTutorial.state =
+          if(isLastStep){
+            // 파란 벽 설명까지 끝.
+            // 선을 그은 순간 페이드 종료 시작.
+            firstRunTutorial.state=
               'finish';
 
-            firstRunTutorial.finishTimer =
-              0;
+            firstRunTutorial.finishTimer=0;
+            firstRunTutorial.fade=0;
 
-            firstRunTutorial.fade = 0;
-
-            game.phase =
+            game.phase=
               'tutorialFinish';
 
-            game.activeLine = null;
+            game.activeLine=null;
 
             abortDrawing();
 
@@ -2113,18 +2570,17 @@
             );
           }
 
-          else {
+          else{
+            firstRunTutorial.nextStep=
+              currentIndex+1;
 
-            firstRunTutorial.nextStep =
-              currentIndex + 1;
-
-            firstRunTutorial.currentStep =
+            firstRunTutorial.currentStep=
               -1;
 
-            firstRunTutorial.state =
+            firstRunTutorial.state=
               'running';
 
-            game.phase = 'playing';
+            game.phase='playing';
 
             canvas.setAttribute(
               'data-tutorial',
@@ -2137,45 +2593,36 @@
       };
 
 
-    // -------------------------------------------------------------------------
-    // Tutorial에서 떨어지거나 죽으면 결과화면 대신 다시 처음부터
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Tutorial에서 죽으면 결과창 대신 처음 조작 설명으로
+    // =========================================================================
 
-    const originalEndRun =
+    const originalEndRun=
       endRun;
 
-    endRun =
+
+    endRun=
       function tutorialEndRun(
-        reason = 'FALL',
-        x = ball.x,
-        y = ball.y
-      ) {
-
-        if (
-          game.gameMode ===
-            'tutorial' &&
-          firstRunTutorial.state !==
-            'finish' &&
-          firstRunTutorial.state !==
-            'returning' &&
-          firstRunTutorial.state !==
-            'done'
-        ) {
-
-          firstRunTutorial.state =
+        reason='FALL',
+        x=ball.x,
+        y=ball.y
+      ){
+        if(
+          game.gameMode==='tutorial' &&
+          firstRunTutorial.state!=='finish' &&
+          firstRunTutorial.state!=='returning' &&
+          firstRunTutorial.state!=='done'
+        ){
+          firstRunTutorial.state=
             'homePrompt';
 
-          firstRunTutorial.nextStep = 0;
-          firstRunTutorial.currentStep =
-            -1;
+          firstRunTutorial.nextStep=0;
+          firstRunTutorial.currentStep=-1;
 
-          firstRunTutorial.finishTimer =
-            0;
+          firstRunTutorial.finishTimer=0;
+          firstRunTutorial.fade=0;
 
-          firstRunTutorial.fade = 0;
-
-          firstRunTutorial.enabled =
-            true;
+          firstRunTutorial.enabled=true;
 
           prepareHomeIdle();
 
@@ -2187,53 +2634,55 @@
           return;
         }
 
-        return originalEndRun(
-          reason,
-          x,
-          y
+        return(
+          originalEndRun(
+            reason,
+            x,
+            y
+          )
         );
       };
 
 
-    // -------------------------------------------------------------------------
-    // Existing transition updater + tutorial updater
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Update hook
+    // =========================================================================
 
-    const originalUpdateTransitions =
+    const originalUpdateTransitions=
       updateTransitions;
 
-    updateTransitions =
+
+    updateTransitions=
       function tutorialUpdateTransitions(
         dt
-      ) {
+      ){
         originalUpdateTransitions(dt);
 
         updateFirstRunTutorial(dt);
       };
 
 
-    // -------------------------------------------------------------------------
-    // Existing render + tutorial overlay
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Render hook
+    // =========================================================================
 
-    const originalRender =
+    const originalRender=
       render;
 
-    render =
-      function tutorialRender() {
 
+    render=
+      function tutorialRender(){
         originalRender();
 
-        const shouldDraw =
+        const shouldDraw=
           (
             firstRunTutorial.enabled &&
-            firstRunTutorial.state !==
-              'done'
+            firstRunTutorial.state!=='done'
           ) ||
-          firstRunTutorial.state ===
+          firstRunTutorial.state===
             'returning';
 
-        if (!shouldDraw) {
+        if(!shouldDraw){
           return;
         }
 
@@ -2245,6 +2694,7 @@
 
         ctx.restore();
       };
+
     prepareHomeIdle();
     applyLocalPreviewQuery();
 
