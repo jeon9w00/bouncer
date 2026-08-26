@@ -2839,7 +2839,7 @@
       const rightWidth=
         ctx.measureText('UNCER').width;
 
-      const visualBallRadius=ball.radius*.52;
+      const visualBallRadius=ball.radius;
 
       const totalWidth=
         leftWidth+
@@ -2909,7 +2909,7 @@
       ctx.fillText(
         'UNCER',
         layout.ballX+
-        ball.radius*.52+
+        ball.radius+
         layout.gap,
         layout.y
       );
@@ -2984,11 +2984,7 @@
         ctx.save();
         ctx.globalAlpha=alpha;
 
-        // 홈 로고 안에서만 공을 실제 크기의 약 절반으로 표시
-        ctx.translate(ball.x,ball.y);
-        ctx.scale(.52,.52);
-        ctx.translate(-ball.x,-ball.y);
-
+        // 홈 로고의 원은 실제 공 크기 그대로 표시
         drawBall('#FFFFFF');
 
         ctx.restore();
