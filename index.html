@@ -4554,7 +4554,23 @@
         if(
           firstRunTutorial.fade<=0
         ){
-          firstRunTutorial.state='done';
+          /*
+            게임 조작 튜토리얼 종료 후
+            홈 메뉴 기능 설명으로 이동.
+          */
+          firstRunTutorial.state='homeGuide';
+          firstRunTutorial.enabled=true;
+          firstRunTutorial.homeGuideIndex=0;
+          firstRunTutorial.fade=0;
+
+          prepareHomeIdle();
+
+          game.tutorialAlpha=0;
+
+          canvas.setAttribute(
+            'data-tutorial',
+            'home-guide:world-tour'
+          );
         }
       }
     }
@@ -4979,7 +4995,306 @@
     }
 
 
+    // =========================================================================
+    // HOME MENU GUIDE
+    // 게임 튜토리얼 이후 WORLD TOUR / SKINS / ACHIEVEMENTS 설명
+    // =========================================================================
+
+    const HOME_TUTORIAL_GUIDE_STEPS=
+      Object.freeze([
+        Object.freeze({
+          id:'world-tour',
+          title:'WORLD TOUR',
+          centerX:70,
+
+          description:[
+            '도시별 스테이지에 도전하는 모드입니다.',
+            '스테이지를 클리어하면 다음 도시와',
+            '새로운 무한 모드 맵을 해금할 수 있어요.'
+          ]
+        }),
+
+        Object.freeze({
+          id:'skins',
+          title:'SKINS',
+          centerX:195,
+
+          description:[
+            '공과 궤적의 색상을 바꿀 수 있습니다.',
+            '무한 모드에서 시작할',
+            '도시 맵도 여기서 선택할 수 있어요.'
+          ]
+        }),
+
+        Object.freeze({
+          id:'achievements',
+          title:'ACHIEVEMENTS',
+          centerX:320,
+
+          description:[
+            '게임을 플레이하며 특별한 조건을 달성하면',
+            '업적과 배지를 획득할 수 있습니다.'
+          ]
+        })
+      ]);
+
+
+    function currentHomeTutorialGuideStep(){
+      return(
+        HOME_TUTORIAL_GUIDE_STEPS[
+          clamp(
+            firstRunTutorial.homeGuideIndex||0,
+            0,
+            HOME_TUTORIAL_GUIDE_STEPS.length-1
+          )
+        ]
+      );
+    }
+
+
+    function drawTutorialHomeGuideOverlay(){
+
+      if(
+        game.screen!=='menu'
+      ){
+        return;
+      }
+
+
+      const step=
+        currentHomeTutorialGuideStep();
+
+      if(!step){
+        return;
+      }
+
+
+      const navY=
+        homeNavigationY();
+
+      /*
+        홈 네비 아이콘 + 글자를 한 원 안에 잡는다.
+      */
+      const holeX=
+        step.centerX;
+
+      const holeY=
+        navY-10;
+
+      const holeRadius=48;
+
+
+      ctx.save();
+
+
+      // ------------------------------------------------------
+      // 전체 화면 반투명 회색
+      // 현재 설명 중인 메뉴 부분만 원형으로 뚫는다.
+      // ------------------------------------------------------
+
+      ctx.fillStyle=
+        'rgba(66,70,75,.70)';
+
+      ctx.beginPath();
+
+      ctx.rect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      ctx.arc(
+        holeX,
+        holeY,
+        holeRadius,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill(
+        'evenodd'
+      );
+
+
+      // ------------------------------------------------------
+      // 강조 원 바깥쪽 BLUE glow
+      // ------------------------------------------------------
+
+      const pulse=
+        .5+
+        .5*
+        Math.sin(
+          game.uiTime*4
+        );
+
+      ctx.shadowColor=
+        'rgba(130,199,255,.72)';
+
+      ctx.shadowBlur=
+        8+
+        pulse*7;
+
+      ctx.strokeStyle=
+        'rgba(130,199,255,.95)';
+
+      ctx.lineWidth=3;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        holeX,
+        holeY,
+        holeRadius,
+        0,
+        Math.PI*2
+      );
+
+      ctx.stroke();
+
+
+      // ------------------------------------------------------
+      // 안쪽 WHITE ring
+      // ------------------------------------------------------
+
+      ctx.shadowBlur=0;
+
+      ctx.strokeStyle=
+        'rgba(255,255,255,.92)';
+
+      ctx.lineWidth=1.4;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        holeX,
+        holeY,
+        holeRadius-5,
+        0,
+        Math.PI*2
+      );
+
+      ctx.stroke();
+
+
+      // ------------------------------------------------------
+      // 설명 카드
+      // ------------------------------------------------------
+
+      const cardW=
+        WORLD.width-48;
+
+      const cardH=142;
+
+      const cardX=24;
+
+      const cardY=
+        clamp(
+          navY-258,
+          330,
+          535
+        );
+
+
+      drawRoundedRect(
+        cardX,
+        cardY,
+        cardW,
+        cardH,
+        18,
+        'rgba(25,29,34,.94)',
+        'rgba(255,255,255,.14)',
+        1
+      );
+
+
+      // 단계 표시
+      ctx.textAlign='left';
+      ctx.textBaseline='top';
+
+      ctx.fillStyle=
+        '#82C7FF';
+
+      ctx.font=
+        '700 8px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        `${(firstRunTutorial.homeGuideIndex||0)+1} / ${HOME_TUTORIAL_GUIDE_STEPS.length}`,
+        cardX+20,
+        cardY+17
+      );
+
+
+      // 제목
+      ctx.fillStyle=
+        '#FFFFFF';
+
+      ctx.font=
+        '780 17px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        step.title,
+        cardX+20,
+        cardY+34
+      );
+
+
+      // 설명
+      ctx.fillStyle=
+        'rgba(247,248,250,.78)';
+
+      ctx.font=
+        '600 9.5px ui-sans-serif, sans-serif';
+
+      step.description.forEach(
+        (line,index)=>{
+          ctx.fillText(
+            line,
+            cardX+20,
+            cardY+67+
+              index*17
+          );
+        }
+      );
+
+
+      // 다음 안내
+      ctx.textAlign='right';
+
+      ctx.fillStyle=
+        'rgba(247,248,250,.48)';
+
+      ctx.font=
+        '650 8px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        firstRunTutorial.homeGuideIndex>=
+          HOME_TUTORIAL_GUIDE_STEPS.length-1
+            ? '클릭하여 튜토리얼 완료'
+            : '클릭하여 다음',
+        cardX+cardW-20,
+        cardY+cardH-21
+      );
+
+
+      ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-tutorial-home-guide',
+        step.id
+      );
+    }
+
+
     function drawFirstRunTutorialOverlay(){
+
+      if(
+        firstRunTutorial.state==='homeGuide'
+      ){
+        drawTutorialHomeGuideOverlay();
+        return;
+      }
 
       if(
         firstRunTutorial.state==='intro'
@@ -5021,6 +5336,91 @@
         ctx.restore();
       }
     }
+
+
+    // =========================================================================
+    // HOME GUIDE INPUT
+    // =========================================================================
+
+    canvas.addEventListener(
+      'pointerdown',
+      event=>{
+
+        if(
+          firstRunTutorial.state!=='homeGuide'
+        ){
+          return;
+        }
+
+
+        /*
+          설명 중에는 실제 WORLD TOUR / SKINS /
+          ACHIEVEMENTS 메뉴를 열지 않는다.
+        */
+        event.preventDefault();
+        event.stopImmediatePropagation();
+
+        audio.ui();
+
+
+        const nextIndex=
+          (firstRunTutorial.homeGuideIndex||0)+1;
+
+
+        if(
+          nextIndex>=
+          HOME_TUTORIAL_GUIDE_STEPS.length
+        ){
+          /*
+            모든 홈 메뉴 설명 완료.
+          */
+
+          firstRunTutorial.homeGuideIndex=
+            HOME_TUTORIAL_GUIDE_STEPS.length-1;
+
+          firstRunTutorial.state='done';
+          firstRunTutorial.enabled=false;
+          firstRunTutorial.fade=0;
+
+          safeSet(
+            FIRST_RUN_TUTORIAL_KEY,
+            '1'
+          );
+
+          canvas.setAttribute(
+            'data-tutorial',
+            'complete'
+          );
+
+          canvas.removeAttribute(
+            'data-tutorial-home-guide'
+          );
+
+          return;
+        }
+
+
+        firstRunTutorial.homeGuideIndex=
+          nextIndex;
+
+
+        const step=
+          HOME_TUTORIAL_GUIDE_STEPS[
+            nextIndex
+          ];
+
+
+        canvas.setAttribute(
+          'data-tutorial',
+          `home-guide:${step.id}`
+        );
+
+      },
+      {
+        capture:true,
+        passive:false
+      }
+    );
 
 
     // =========================================================================
