@@ -341,6 +341,13 @@
         name:'NEW YORK ASCENT',
         subtitle:'NEW YORK TO SPACE',
         unlock:'CLEAR ALL NEW YORK STAGES'
+      }),
+
+      Object.freeze({
+        id:'tokyo',
+        name:'TOKYO ASCENT',
+        subtitle:'TOKYO TO SPACE',
+        unlock:'CLEAR ALL TOKYO STAGES'
       })
     ]);
 
@@ -376,12 +383,25 @@
         shortDescription:'뉴욕 모든 스테이지 클리어',
         badge:'bigApple',
         notify:true
+      }),
+
+      tokyo:Object.freeze({
+        id:'big_mikan',
+        cityId:'tokyo',
+        requiredStages:10,
+        title:'빅 미칸',
+        englishTitle:'BIG MIKAN',
+        description:'도쿄의 모든 스테이지를 클리어하세요.',
+        shortDescription:'도쿄 모든 스테이지 클리어',
+        badge:'bigMikan',
+        notify:true
       })
     });
 
     const ACHIEVEMENTS = Object.freeze([
       CITY_COMPLETION_ACHIEVEMENTS.seoul,
       CITY_COMPLETION_ACHIEVEMENTS.newyork,
+      CITY_COMPLETION_ACHIEVEMENTS.tokyo,
 
       Object.freeze({
         id:'first_flight',
@@ -430,7 +450,7 @@
     const TOKYO_BACKGROUNDS = Object.freeze(Object.fromEntries([
       ['TOKYO CITY',['#7797b8','#9aa9bd','#d2b3ad']],['SHIBUYA',['#657b9d','#9a829a','#d49b91']],['TOKYO TOWER',['#728dad','#a58c9b','#d3a08e']],['ASAKUSA',['#8a9aae','#c2a7a0','#dfc1a7']],['TOKYO SKYTREE',['#718ca8','#9eb0c4','#d1bdc0']],
       ['SHINJUKU',['#526986','#7e7891','#bc8587']],['AKIHABARA',['#536781','#806f8b','#b67f82']],['ODAIBA',['#6c8da8','#92aab9','#c9a7a0']],['TOKYO STATION / MARUNOUCHI',['#7d8b9d','#ad968d','#d1ae93']],['TOKYO NIGHT',['#17243d','#302d52','#744b68']]
-    ].map(([region,fallback],index)=>{const number=index+1,id=`tokyo${String(number).padStart(2,'0')}`;return[id,Object.freeze({city:'tokyo',region,asset:null,futureAsset:`assets/tokyo/tokyo_${number}.png`,focusX:.5,night:number===10,fallback})];})));
+    ].map(([region,fallback],index)=>{const number=index+1,id=`tokyo${String(number).padStart(2,'0')}`;return[id,Object.freeze({city:'tokyo',region,asset:`assets/tokyo/tokyo_${number}.png`,focusX:.5,night:number===10,fallback})];})));
     const STAGE_IMAGE_BACKGROUNDS = Object.freeze({...BACKGROUND_THEMES,...NEW_YORK_BACKGROUNDS,...TOKYO_BACKGROUNDS});
 
     // =========================================================================
@@ -738,6 +758,13 @@
         return (
           completedStageCount('newyork') >=
           STAGES.newyork.length
+        );
+      }
+
+      if(id==='tokyo'){
+        return (
+          completedStageCount('tokyo') >=
+          STAGES.tokyo.length
         );
       }
 
@@ -1616,6 +1643,7 @@
       const stageId=game.currentStage.id;
       const seoulMapWasLocked=!isInfiniteMapUnlocked('seoul');
       const newYorkMapWasLocked=!isInfiniteMapUnlocked('newyork');
+      const tokyoMapWasLocked=!isInfiniteMapUnlocked('tokyo');
       const unlockLabels=[];
 
       progress.stars[stageId]=Math.max(
@@ -1645,6 +1673,13 @@
         isInfiniteMapUnlocked('newyork')
       ){
         unlockLabels.push('NEW YORK MAP');
+      }
+
+      if(
+        tokyoMapWasLocked &&
+        isInfiniteMapUnlocked('tokyo')
+      ){
+        unlockLabels.push('TOKYO MAP');
       }
       if(game.currentStageIndex===STAGES[game.currentCity].length-1){const nextCity=CITY_ORDER[CITY_ORDER.indexOf(game.currentCity)+1];if(nextCity&&STAGES[nextCity].length){progress.unlocked[nextCity]=Math.max(progress.unlocked[nextCity]||0,1);unlockLabels.push(CITIES[nextCity].name);}}
       if(unlockLabels.length)showBanner(`${unlockLabels.join(' · ')} UNLOCKED`,COLORS.finish);
@@ -1858,6 +1893,154 @@
       );
     }
 
+    function drawInfiniteTokyoRise(
+      climb,
+      originAlpha=1
+    ){
+      const definition=
+        TOKYO_BACKGROUNDS.tokyo01;
+
+      const record=
+        stageBackgroundImages.get(
+          'tokyo01'
+        );
+
+      const travel=
+        infiniteSeoulBackgroundTravel(
+          climb
+        );
+
+      const backgroundY=
+        travel*
+        WORLD.height;
+
+      const fade=
+        1-
+        smoothstep(
+          (climb-2250)/
+          520
+        );
+
+      canvas.setAttribute(
+        'data-infinite-origin',
+        'TOKYO'
+      );
+
+      canvas.setAttribute(
+        'data-infinite-city-y',
+        backgroundY.toFixed(2)
+      );
+
+      if(fade<=0){
+        return;
+      }
+
+
+      if(
+        !record ||
+        record.status!=='ready'
+      ){
+        drawInfiniteCityRise(
+          climb,
+          originAlpha
+        );
+
+        canvas.setAttribute(
+          'data-infinite-city-state',
+          record?.status||
+          'fallback'
+        );
+
+        return;
+      }
+
+
+      const source=
+        imageCoverSourceRect(
+          record.image,
+          WORLD.width,
+          WORLD.height,
+          0,
+          record.image.naturalHeight,
+          .5,
+          definition?.focusX??.5
+        );
+
+
+      const snappedY=
+        Math.round(
+          backgroundY*
+          pixelRatio
+        )/
+        pixelRatio;
+
+
+      ctx.save();
+
+      ctx.globalAlpha=
+        fade*
+        originAlpha;
+
+
+      drawStageImageSkyBase(
+        record,
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+
+      drawStageImageSkyExtension(
+        record,
+        source,
+        0,
+        snappedY,
+        WORLD.width,
+        WORLD.height
+      );
+
+
+      ctx.drawImage(
+        record.image,
+
+        source.sx,
+        source.sy,
+        source.sw,
+        source.sh,
+
+        0,
+        snappedY,
+        WORLD.width,
+        WORLD.height
+      );
+
+
+      ctx.fillStyle=
+        'rgba(8,12,18,.035)';
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-infinite-city-state',
+        'ready'
+      );
+
+      canvas.setAttribute(
+        'data-infinite-sky-seam',
+        'mirrored-sky-overlap'
+      );
+    }
+
+
     function drawInfiniteOrigin(climb){
       const mapId=selectedInfiniteMap();
       const originAlpha=smoothstep(game.elapsed/1.05);
@@ -1874,6 +2057,14 @@
 
       if(mapId==='newyork'){
         drawInfiniteNewYorkRise(
+          climb,
+          originAlpha
+        );
+        return;
+      }
+
+      if(mapId==='tokyo'){
+        drawInfiniteTokyoRise(
           climb,
           originAlpha
         );
@@ -3369,6 +3560,41 @@
           );
         }
 
+      }else if(mapId==='tokyo'){
+
+        const definition=
+          TOKYO_BACKGROUNDS
+            .tokyo01;
+
+        const record=
+          stageBackgroundImages.get(
+            'tokyo01'
+          );
+
+        ctx.fillStyle=
+          record?.skyColor||
+          '#7797b8';
+
+        ctx.fillRect(
+          x,y,w,h
+        );
+
+        if(
+          record?.status==='ready'
+        ){
+          drawImageCover(
+            record.image,
+            x,
+            y,
+            w,
+            h,
+            record.image.naturalHeight*.44,
+            record.image.naturalHeight*.56,
+            .64,
+            definition?.focusX??.5
+          );
+        }
+
       }else{
         const gradient=ctx.createLinearGradient(0,y,0,y+h);
         gradient.addColorStop(0,'#5A9DE1');
@@ -3408,7 +3634,7 @@
       }
       ctx.restore();
     }
-    function drawInfiniteMapCard(map,index,baseY=174){const x=24,y=baseY+index*190,w=342,h=166,unlocked=isInfiniteMapUnlocked(map.id),selected=selectedInfiniteMap()===map.id,hovered=input.hoverAction===`map:${map.id}`;drawRoundedRect(x,y,w,h,16,unlocked?'rgba(255,255,255,.04)':'rgba(255,255,255,.018)',selected?'rgba(130,199,255,.72)':hovered?'rgba(130,199,255,.42)':'rgba(255,255,255,.13)',selected?1.7:1);drawInfiniteMapPreview(map.id,x+10,y+10,w-20,92,unlocked);ctx.textBaseline='top';ctx.textAlign='left';ctx.fillStyle=unlocked?COLORS.white:'#59616a';ctx.font='750 13px ui-sans-serif, sans-serif';ctx.fillText(map.name,x+16,y+116);ctx.fillStyle=unlocked?COLORS.muted:'#4b525a';ctx.font='600 8px ui-sans-serif, sans-serif';ctx.fillText(unlocked?map.subtitle:map.unlock,x+16,y+141);ctx.textAlign='right';ctx.fillStyle=selected?COLORS.accent:unlocked?COLORS.softWhite:'#555c64';ctx.font='700 8px ui-sans-serif, sans-serif';ctx.fillText(selected?'SELECTED':unlocked?'SELECT':'LOCKED',x+w-16,y+130);if(unlocked)registerHitArea(x,y,w,h,`map:${map.id}`);}
+    function drawInfiniteMapCard(map,index,baseY=174){const x=24,y=baseY+index*145,w=342,h=128,unlocked=isInfiniteMapUnlocked(map.id),selected=selectedInfiniteMap()===map.id,hovered=input.hoverAction===`map:${map.id}`;drawRoundedRect(x,y,w,h,16,unlocked?'rgba(255,255,255,.04)':'rgba(255,255,255,.018)',selected?'rgba(130,199,255,.72)':hovered?'rgba(130,199,255,.42)':'rgba(255,255,255,.13)',selected?1.7:1);drawInfiniteMapPreview(map.id,x+10,y+10,w-20,64,unlocked);ctx.textBaseline='top';ctx.textAlign='left';ctx.fillStyle=unlocked?COLORS.white:'#59616a';ctx.font='750 13px ui-sans-serif, sans-serif';ctx.fillText(map.name,x+16,y+82);ctx.fillStyle=unlocked?COLORS.muted:'#4b525a';ctx.font='600 8px ui-sans-serif, sans-serif';ctx.fillText(unlocked?map.subtitle:map.unlock,x+16,y+105);ctx.textAlign='right';ctx.fillStyle=selected?COLORS.accent:unlocked?COLORS.softWhite:'#555c64';ctx.font='700 8px ui-sans-serif, sans-serif';ctx.fillText(selected?'SELECTED':unlocked?'SELECT':'LOCKED',x+w-16,y+94);if(unlocked)registerHitArea(x,y,w,h,`map:${map.id}`);}
     function drawMapSelect(){fillVerticalGradient('#1d2932',COLORS.background);drawBackButton('mapBack');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=COLORS.white;ctx.font='780 28px ui-sans-serif, sans-serif';ctx.fillText('INFINITE MAP',24,84);ctx.fillStyle=COLORS.muted;ctx.font='600 10px ui-sans-serif, sans-serif';ctx.fillText('CHOOSE YOUR STARTING WORLD',25,122);INFINITE_MAPS.forEach(drawInfiniteMapCard);ctx.textAlign='center';ctx.fillStyle=COLORS.muted;ctx.font='600 9px ui-sans-serif, sans-serif';ctx.fillText('ALL MAPS CONTINUE INTO THE SAME ATMOSPHERE',WORLD.width/2,780);}
     function drawSkinSwatches(kind,y){const selectedId=appearance[kind],label=kind==='ball'?'BALL COLOR':'TRAIL COLOR',selected=SKIN_SWATCHES.find(swatch=>swatch.id===selectedId)||SKIN_SWATCHES[0];ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=COLORS.softWhite;ctx.font='700 11px ui-sans-serif, sans-serif';ctx.fillText(label,28,y);ctx.textAlign='right';ctx.fillStyle=selected.color;ctx.font='650 9px ui-sans-serif, sans-serif';ctx.fillText(selected.name,362,y+1);SKIN_SWATCHES.forEach((swatch,index)=>{const x=55+index*70,cy=y+64,isSelected=swatch.id===selectedId,action=`${kind==='ball'?'ballSkin':'trailSkin'}:${swatch.id}`;ctx.save();ctx.shadowColor=isSelected?colorWithAlpha(swatch.color,.28):'transparent';ctx.shadowBlur=10;ctx.fillStyle=swatch.color;ctx.beginPath();ctx.arc(x,cy,14,0,Math.PI*2);ctx.fill();ctx.restore();ctx.strokeStyle=isSelected?COLORS.white:'rgba(255,255,255,.13)';ctx.lineWidth=isSelected?2:1;ctx.beginPath();ctx.arc(x,cy,isSelected?21:19,0,Math.PI*2);ctx.stroke();registerHitArea(x-27,cy-27,54,54,action);});}
     function drawSkinTab(label,id,x){const selected=game.skinTab===id,action=`skinTab:${id}`;drawRoundedRect(x,146,108,38,19,selected?'rgba(130,199,255,.14)':'rgba(255,255,255,.025)',selected?'rgba(130,199,255,.62)':'rgba(255,255,255,.09)',1);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=selected?COLORS.accent:COLORS.muted;ctx.font='720 9px ui-sans-serif, sans-serif';ctx.fillText(label,x+54,165);registerHitArea(x,140,108,50,action);}
@@ -3564,14 +3790,294 @@
 
         ctx.restore();
       }
+      else if(definition.badge==='bigMikan'){
+        /*
+          BIG MIKAN
+          도쿄 완주 기념 귤 배지
+        */
+
+        ctx.save();
+
+        // 귤 몸통
+        ctx.fillStyle=
+          unlocked
+            ?'#F3A548'
+            :ink;
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+          0,
+          3,
+          18,
+          16,
+          0,
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+
+
+        // 귤 윗부분 살짝 눌린 형태
+        ctx.strokeStyle=
+          unlocked
+            ?'#FFD08A'
+            :inner;
+
+        ctx.lineWidth=1.5;
+
+        ctx.beginPath();
+
+        ctx.arc(
+          0,
+          2,
+          13,
+          Math.PI*.16,
+          Math.PI*.84
+        );
+
+        ctx.stroke();
+
+
+        // 줄기
+        ctx.strokeStyle=
+          unlocked
+            ?'#426C49'
+            :ink;
+
+        ctx.lineWidth=2.2;
+
+        ctx.beginPath();
+
+        ctx.moveTo(
+          0,
+          -12
+        );
+
+        ctx.lineTo(
+          2,
+          -19
+        );
+
+        ctx.stroke();
+
+
+        // 잎
+        ctx.fillStyle=
+          unlocked
+            ?'#78A86D'
+            :ink;
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+          8,
+          -18,
+          8,
+          3.8,
+          -.35,
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+
+
+        // 작은 TOKYO 스파크
+        ctx.strokeStyle=
+          unlocked
+            ?'#FFFFFF'
+            :inner;
+
+        ctx.lineWidth=1.4;
+
+        ctx.beginPath();
+
+        ctx.moveTo(-24,-3);
+        ctx.lineTo(-20,-3);
+
+        ctx.moveTo(22,1);
+        ctx.lineTo(26,1);
+
+        ctx.moveTo(18,-15);
+        ctx.lineTo(21,-18);
+
+        ctx.stroke();
+
+        ctx.restore();
+      }
+
       else if(definition.badge==='flight'){ctx.beginPath();ctx.moveTo(-16,10);ctx.quadraticCurveTo(-5,-4,5,3);ctx.quadraticCurveTo(12,7,18,-10);ctx.stroke();ctx.beginPath();ctx.moveTo(12,-9);ctx.lineTo(19,-11);ctx.lineTo(18,-4);ctx.stroke();}
       else if(definition.badge==='star'){drawStarPath(0,0,radius*.4,radius*.18);ctx.fill();}
       else{ctx.beginPath();ctx.moveTo(-14,14);ctx.lineTo(0,0);ctx.lineTo(9,9);ctx.lineTo(19,-8);ctx.stroke();ctx.beginPath();ctx.moveTo(13,-7);ctx.lineTo(20,-9);ctx.lineTo(19,-2);ctx.stroke();}
       if(!unlocked){ctx.globalAlpha=1;ctx.fillStyle='#303943';drawRoundedRect(8,8,18,16,4,'#303943');ctx.strokeStyle='#a2abb4';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(17,8,5,Math.PI,0);ctx.stroke();ctx.fillStyle='#a2abb4';ctx.beginPath();ctx.arc(17,16,2,0,Math.PI*2);ctx.fill();}ctx.restore();
     }
-    function drawAchievementCard(definition,index){
-      const x=24,y=154+index*126,w=342,h=112,status=achievementProgress(definition),unlocked=isAchievementUnlocked(definition.id),ratio=clamp(status.current/Math.max(1,status.target),0,1);drawRoundedRect(x,y,w,h,18,unlocked?'rgba(130,199,255,.075)':'rgba(255,255,255,.027)',unlocked?'rgba(130,199,255,.26)':'rgba(255,255,255,.085)',1);drawAchievementBadge(definition,x+43,y+48,58,unlocked);ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=unlocked?COLORS.white:COLORS.softWhite;ctx.font='740 13px ui-sans-serif, sans-serif';ctx.fillText(definition.title,x+82,y+16);let descriptionY=y+43;if(definition.englishTitle){ctx.fillStyle=unlocked?'rgba(174,218,250,.78)':'#6f7983';ctx.font='680 7.5px ui-sans-serif, sans-serif';ctx.fillText(definition.englishTitle,x+82,y+35);descriptionY=y+51;}ctx.fillStyle=COLORS.muted;ctx.font='600 8.5px ui-sans-serif, sans-serif';ctx.fillText(definition.shortDescription||definition.description,x+82,descriptionY);ctx.textAlign='right';ctx.fillStyle=unlocked?COLORS.accent:'#707984';ctx.font='720 8px ui-sans-serif, sans-serif';ctx.fillText(unlocked?'COMPLETED':`${Math.min(status.current,status.target)} / ${status.target}`,x+w-18,y+77);drawRoundedRect(x+82,y+91,w-100,4,2,'rgba(255,255,255,.075)');if(ratio>0)drawRoundedRect(x+82,y+91,(w-100)*ratio,4,2,unlocked?'#82c7ff':'#64717d');
+    function drawAchievementCard(
+      definition,
+      index
+    ){
+      const x=20;
+      const y=144+index*103;
+      const w=350;
+      const h=92;
+
+      const status=
+        achievementProgress(
+          definition
+        );
+
+      const unlocked=
+        isAchievementUnlocked(
+          definition.id
+        );
+
+      const ratio=
+        clamp(
+          status.current/
+          Math.max(
+            1,
+            status.target
+          ),
+          0,
+          1
+        );
+
+
+      drawRoundedRect(
+        x,
+        y,
+        w,
+        h,
+        16,
+
+        unlocked
+          ?'rgba(130,199,255,.075)'
+          :'rgba(255,255,255,.027)',
+
+        unlocked
+          ?'rgba(130,199,255,.26)'
+          :'rgba(255,255,255,.085)',
+
+        1
+      );
+
+
+      drawAchievementBadge(
+        definition,
+        x+38,
+        y+41,
+        48,
+        unlocked
+      );
+
+
+      ctx.textAlign='left';
+      ctx.textBaseline='top';
+
+      ctx.fillStyle=
+        unlocked
+          ?COLORS.white
+          :COLORS.softWhite;
+
+      ctx.font=
+        '740 12px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        definition.title,
+        x+72,
+        y+12
+      );
+
+
+      let descriptionY=
+        y+38;
+
+
+      if(
+        definition.englishTitle
+      ){
+        ctx.fillStyle=
+          unlocked
+            ?'rgba(174,218,250,.78)'
+            :'#6f7983';
+
+        ctx.font=
+          '680 7px ui-sans-serif, sans-serif';
+
+        ctx.fillText(
+          definition.englishTitle,
+          x+72,
+          y+29
+        );
+
+        descriptionY=
+          y+44;
+      }
+
+
+      ctx.fillStyle=
+        COLORS.muted;
+
+      ctx.font=
+        '600 8px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        definition.shortDescription||
+        definition.description,
+        x+72,
+        descriptionY
+      );
+
+
+      ctx.textAlign='right';
+
+      ctx.fillStyle=
+        unlocked
+          ?COLORS.accent
+          :'#707984';
+
+      ctx.font=
+        '720 7.5px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        unlocked
+          ?'COMPLETED'
+          :`${Math.min(
+              status.current,
+              status.target
+            )} / ${status.target}`,
+
+        x+w-16,
+        y+64
+      );
+
+
+      drawRoundedRect(
+        x+72,
+        y+78,
+        w-90,
+        4,
+        2,
+        'rgba(255,255,255,.075)'
+      );
+
+
+      if(ratio>0){
+        drawRoundedRect(
+          x+72,
+          y+78,
+          (w-90)*ratio,
+          4,
+          2,
+          unlocked
+            ?'#82c7ff'
+            :'#64717d'
+        );
+      }
     }
+
+
     function drawAchievements(){
       fillVerticalGradient(
         '#202a33',
@@ -3735,8 +4241,8 @@
         rayAllEdges:right.x===WORLD.width&&left.x===0&&topEdge.y===0&&bottom.y===WORLD.height,rayCorner:Math.abs(corner.x-WORLD.width)<.001&&Math.abs(corner.y)<.001&&Math.abs(cross)<.001,maxLineBeforeEdge:Math.abs(maxLimited.x-(farStart.x+LINE_RULES.maxLength))<.001,insideTracksPointer:Math.abs(inside.x-250)<.001&&Math.abs(inside.y-380)<.001,
         pointerEventsSupported:'PointerEvent'in window&&typeof canvas.setPointerCapture==='function',pointerCancelClears,lostCapturePreserves,pointerLeavePreserves,trackpadZeroButtonsPreserves,desktopPreviewAutoCommits,windowPointerFallback:true,trackpadMouseFallback:true,responsiveViewportUniform,responsivePointerAccurate,shortViewportLetterboxes,longViewportShowsBackground,fixedLogicalPhysics:WORLD.width===390&&WORLD.height===844&&LINE_RULES.maxLength===142&&PHYSICS.gravity===650&&PHYSICS.maxFallSpeed===720,balancedFallSpeed:PHYSICS.gravity<700&&PHYSICS.maxFallSpeed<=720,lineEndpointUsesFaceNormal:Boolean(endpointHit&&Math.abs(endpointHit.normal.x)<.001&&endpointHit.normal.y<-.99),continuousAngleBounce:angleDelta<80&&angleBounceA.y<0&&angleBounceB.y<0,movingWallSwept:Boolean(movingWallHit&&movingWallHit.hit.normal.x>0&&movingWallHit.hit.approach<0),wormholeSwept:Math.abs(wormholeSweep-.3)<.001,wormholeRotatesVelocity:Math.abs(rotatedWormholeVelocity.vx)<.001&&Math.abs(rotatedWormholeVelocity.vy+300)<.001&&Math.abs(Math.hypot(rotatedWormholeVelocity.vx,rotatedWormholeVelocity.vy)-300)<.001,
         altitudeCameraProfile:Math.abs(altitudeFromClimb(2600)-15)<.001&&Math.abs(altitudeFromClimb(8000)-100)<.001&&Math.abs(altitudeFromClimb(15000)-800)<.001&&Math.abs(altitudeFromClimb(32000)-5000)<.001,scoreAltitudeSeparated:!('score'in ALTITUDE_RULES)&&altitudeFromClimb(0)===0,threeToFiveBouncesStaySky:!canEnterInfinitePhase(INFINITE_PHASES[1],1000,5),boostCannotSkipSpace:!canEnterInfinitePhase(INFINITE_PHASES[2],5000,1),phaseBounceGates:canEnterInfinitePhase(INFINITE_PHASES[1],15,8)&&!canEnterInfinitePhase(INFINITE_PHASES[1],15,7)&&canEnterInfinitePhase(INFINITE_PHASES[2],100,20)&&canEnterInfinitePhase(INFINITE_PHASES[3],800,40)&&canEnterInfinitePhase(INFINITE_PHASES[4],5000,70),gradualTransition:earlyBlend===0&&lateBlend>0&&lateBlend<1,oneWayPhaseModel:getInfinitePhase(0,'space',0).index===2,
-        infinite0Clean:!k0.includes('WALL')&&!k0.includes('HAZARD')&&!k0.includes('BOOST')&&!k0.includes('SATELLITE')&&!k0.includes('DEAD_WALL'),wallAt1000:k1.includes('WALL'),hazardAt2500:k25.includes('HAZARD'),deathWallAt2500:k25.includes('DEAD_WALL'),boostAt4000:k4.includes('BOOST'),movingWallsAtAltitude:upperHigh.includes('MOVING')&&upperHigh.includes('MOVING_DEAD_WALL'),satelliteDelayed:!upperEarly.includes('SATELLITE')&&upperMid.includes('SATELLITE'),satelliteStopsAtSpace:!spaceMid.includes('SATELLITE'),meteorDelayed:!spaceEarly.includes('METEOR')&&spaceMid.includes('METEOR'),fallingMeteorLibrary:fallingMeteors.length>=6&&fallingMeteors.every(template=>template.objects.filter(item=>item.type==='meteor').every(item=>item.fallSpeed>0)),asteroidAtPlanet:planet.includes('ASTEROID'),cosmicAtGalaxy:galaxy.includes('COSMIC'),infinitePatternLibrary:INFINITE_SEGMENT_TEMPLATES.length>=30&&VALID_INFINITE_TEMPLATES.length===INFINITE_SEGMENT_TEMPLATES.length,infiniteMapModel:INFINITE_MAPS.length===3&&isInfiniteMapUnlocked('city')&&isInfiniteMapUnlocked('seoul')===Boolean(progress.completed?.SEOUL_10||progress.stars?.SEOUL_10)&&isInfiniteMapUnlocked('newyork')===(completedStageCount('newyork')>=STAGES.newyork.length)&&INFINITE_MAPS.some(map=>map.id===selectedInfiniteMap()),seoulMapAsset:BACKGROUND_THEMES.SEOUL_GENERAL_DAY.asset==='assets/seoul/seoul_2.png'&&infiniteSeoulBackgroundTravel(0)===0&&infiniteSeoulBackgroundTravel(2550)>=1,skinPaletteValid:SKIN_SWATCHES.length===5&&validSkinId(appearance.ball)&&validSkinId(appearance.trail)&&SKIN_SWATCHES.every(swatch=>/^#[0-9a-f]{6}$/i.test(swatch.color)),ballRendererClean:!/(shadow|stroke)/.test(drawBall.toString())&&((drawBall.toString().match(/\.arc\(/g)||[]).length===1),
-        deadlyTypes:['hazard','deathwall','satellite','meteor','asteroid'].every(type=>isDeadlyObject({type})),deathWallReason:deathReasonForObject({type:'deathwall'})==='DEAD WALL',backButtonInset:drawBackButton.toString().includes('const y=58')&&drawBackButton.toString().includes('data-back-button-y'),homeBottomNavigation:drawMainMenu.toString().includes("data-home-menu-count','3")&&!drawMainMenu.toString().includes('INFINITE MODE')&&!drawMainMenu.toString().includes("action:'map'"),homeActualBall:drawHomeLogo.toString().includes("drawBall('#FFFFFF')")&&homeLogoMetrics().ballX>0,homeLineStartsInfinite:canDrawLineNow.toString().includes("game.phase==='homeIdle'")&&commitCurrentDrawing.toString().includes('launchInfiniteFromHome'),homePromptRemoved:!drawMainMenu.toString().includes('drawHomePrompt')&&drawMainMenu.toString().includes("data-home-prompt','removed'"),homeStartEased:HOME_LAYOUT.transitionDuration>=.5&&updatePhysics.toString().includes('homeGravity')&&!updateTransitions.toString().includes('ball.vy=0'),homeGradientSingleLayer:getComputedStyle(gameShell).backgroundImage.includes('linear-gradient')&&drawResponsiveViewportBackdrop.toString().includes("game.screen==='menu'")&&!drawResponsiveViewportBackdrop.toString().includes('drawResponsiveHomeGradient'),skinMapsIntegrated:drawSkinSelect.toString().includes("game.skinTab==='maps'")&&handleAction.toString().includes("action.startsWith('skinTab:')"),homeAchievementsFunctional:handleAction.toString().includes("action==='achievements'")&&drawAchievements.toString().includes('ACHIEVEMENTS.forEach'),seoulBackgroundsComplete:seoulBackgrounds.length===10&&new Set(seoulBackgrounds).size===10&&seoulBackgrounds.every(id=>Boolean(BACKGROUND_THEMES[id])),seoulAssetMapping,seoulBackgroundTravel:stageBackgroundTravel(.25)<.05&&stageBackgroundTravel(.55)===.25&&stageBackgroundTravel(.75)===.72&&stageBackgroundTravel(1)===1,seoulBrightnessRule:seoulBackgrounds.slice(0,9).every(shouldDimSeoulBackground)&&!shouldDimSeoulBackground('SEOUL_GENERAL_NIGHT'),seoulDayNightSharedLayout:BACKGROUND_THEMES.SEOUL_GENERAL_DAY.layout===BACKGROUND_THEMES.SEOUL_GENERAL_NIGHT.layout,fixedStageLayouts,newYorkTenStages:newYorkStages.length===10&&newYorkStages.every((stage,index)=>stage.id===`NEWYORK_${String(index+1).padStart(2,'0')}`&&stage.region===newYorkNames[index]),newYorkMechanics:newYorkMovingWalls.some(item=>item.type==='wall')&&newYorkMovingWalls.some(item=>item.type==='deathwall')&&newYorkMovingWalls.some(item=>item.type==='jumpwall')&&newYorkWormholes.length>=12,newYorkDeterministic:newYorkMovingWalls.every(item=>['x','y'].includes(item.movement.axis)&&Number.isFinite(item.movement.distance)&&Number.isFinite(item.movement.speed)&&Number.isFinite(item.movement.phase))&&newYorkStages.every(stage=>stageWormholesValid(stage)),newYorkImageBackgrounds:Object.keys(NEW_YORK_BACKGROUNDS).length===10&&newYorkStages.every((stage,index)=>NEW_YORK_BACKGROUNDS[stage.background]?.asset===`assets/newyork/newyork_${index+1}.png`&&Math.abs(NEW_YORK_BACKGROUNDS[stage.background].focusX-newYorkFocus[index])<.001)&&drawNewYorkBackdrop.toString().includes('drawStageImageBackdrop')&&drawResponsiveStageImageBackground.toString().includes('drawStageImageSkyExtension'),newYorkThumbnails:drawStageSelect.toString().includes('drawStageImagePreview')&&drawCityPreview.toString().includes("drawStageImagePreview('newyork01'"),worldTourSeoulPreview:drawCityPreview.toString().includes("drawStageImagePreview('SEOUL_GENERAL_DAY'"),newYorkStageSelectNight:drawStageSelect.toString().includes("newyork:'newyork10'"),tokyoTenStages:tokyoStages.length===10&&tokyoStages.every((stage,index)=>stage.id===`TOKYO_${String(index+1).padStart(2,'0')}`&&stage.region===tokyoNames[index]),tokyoMeteorCounts:tokyoStages.every((stage,index)=>(stage.meteors||[]).length===tokyoMeteorCounts[index]),tokyoMeteorDeterministic:tokyoMeteors.length===38&&new Set(tokyoMeteors.map(item=>item.id)).size===tokyoMeteors.length&&tokyoMeteors.every(item=>['x','y','vx','vy','triggerCameraY','radius','warningTime'].every(key=>Number.isFinite(item[key]))&&item.vy>0&&item.vx!==0&&item.warningTime>=.5&&item.warningTime<=.8),tokyoMechanicMix:tokyoMovingWalls.length>=5&&tokyoWormholes.length>=6&&tokyoStages.some(stage=>stage.obstacles.some(item=>item.type==='deathwall'))&&tokyoStages.some(stage=>stage.obstacles.some(item=>item.type==='jumpwall')),tokyoNoRandomGeometry:tokyoStages.every(stage=>stageLayoutSignature(stage)===stageLayoutSignature(stage)),meteorOnlyTokyoStages:[...STAGES.seoul,...STAGES.newyork].every(stage=>!(stage.meteors||[]).length),tokyoBackgroundRegistry:Object.keys(TOKYO_BACKGROUNDS).length===10&&tokyoStages.every((stage,index)=>TOKYO_BACKGROUNDS[stage.background]?.futureAsset===`assets/tokyo/tokyo_${index+1}.png`&&!TOKYO_BACKGROUNDS[stage.background]?.asset),tokyoUnlockMigration:newYorkCompleteState.unlocked.tokyo>=1,tokyoStageSelectNight:drawStageSelect.toString().includes("tokyo:'tokyo10'"),tokyoWorldPreview:drawCityPreview.toString().includes("drawStageImagePreview('tokyo10'"),stageModeHasNoShards:allStages.every(stage=>stage.shards.length===0)&&!setupStageWorld.toString().includes('createShard'),stageMapStars:STAGES.seoul[0].stageStar===null&&allStages.filter(stage=>stage.id!=='SEOUL_01').every(stage=>Number.isFinite(stage.stageStar?.x)&&Number.isFinite(stage.stageStar?.y)),seoulOneAlwaysThree:calculateStageStarsFor(STAGES.seoul[0],999,false)===3,mapStarRequiredForThree:calculateStageStarsFor(STAGES.tokyo[0],0,false)===2&&calculateStageStarsFor(STAGES.tokyo[0],0,true)===3,mapStarNoScore:!collectStageStar.toString().includes('addScore'),stageScoreDisabled:scoreBounce.toString().includes("game.gameMode==='infinite'")&&handleSolidCollision.toString().includes("game.gameMode==='infinite'"),worldTourModernWalls:worldTourObstacles.every(item=>!['hazard','boost'].includes(item.type))&&drawLineStructure.toString().includes("outerWidth=clamp(shortSide*.68,9,12)"),cityThemesDistinct:new Set(['SEOUL_GENERAL_DAY','newyork01','tokyo01','parisMorning','dubaiDay','singaporeDay']).size===CITY_ORDER.length&&CITY_ORDER.every(city=>STAGES[city].length>0),stageDataIndependent:STAGES.seoul[4].obstacles.some(item=>item.type==='jumpwall')&&DIFFICULTY_THRESHOLDS.boost===4000,backgroundTracksRemoved:!document.querySelector('audio')&&Object.keys(settings).length===2,sfxPreserved:typeof audio.normal==='function'&&typeof audio.perfect==='function'&&typeof audio.shard==='function'&&typeof audio.boost==='function'&&typeof audio.death==='function'&&typeof audio.ui==='function'&&typeof audio.wormhole==='function'&&typeof audio.meteorWarning==='function',stageImageSkySeamFree:SEOUL_SKY_OVERLAP===4&&drawStageImageSkyExtension.toString().includes('sourceStripHeight')&&drawStageImageSkyExtension.toString().includes('scale(1,-1)')&&drawResponsiveStageImageBackground.toString().includes('drawStageImageSkyExtension'),hudHasNoTopBand:!drawHud.toString().includes('fillRect(0,0,WORLD.width,82)'),desktopFrameRemoved:getComputedStyle(gameShell).borderLeftWidth==='0px',achievementNineOfTen:completedStageCount('seoul',nineStageState)===9&&achievementProgress(CITY_COMPLETION_ACHIEVEMENTS.seoul,nineStageState).current===9,achievementTenOfTen:completedStageCount('seoul',tenStageState)===10&&achievementProgress(CITY_COMPLETION_ACHIEVEMENTS.seoul,tenStageState).current===10,legacyCompletionMigrates:seoulStageIds.every(id=>legacyState.completed[id]),achievementSaveCompatible:isAchievementUnlocked('miracle_on_han_river',savedAchievementState)&&savedAchievementState.achievements.miracle_on_han_river.unlockedAt===12345,achievementDataDriven:ACHIEVEMENTS.includes(CITY_COMPLETION_ACHIEVEMENTS.seoul)&&drawAchievementCard.toString().includes('achievementProgress'),templatesValid:VALID_INFINITE_TEMPLATES.length===INFINITE_SEGMENT_TEMPLATES.length
+        infinite0Clean:!k0.includes('WALL')&&!k0.includes('HAZARD')&&!k0.includes('BOOST')&&!k0.includes('SATELLITE')&&!k0.includes('DEAD_WALL'),wallAt1000:k1.includes('WALL'),hazardAt2500:k25.includes('HAZARD'),deathWallAt2500:k25.includes('DEAD_WALL'),boostAt4000:k4.includes('BOOST'),movingWallsAtAltitude:upperHigh.includes('MOVING')&&upperHigh.includes('MOVING_DEAD_WALL'),satelliteDelayed:!upperEarly.includes('SATELLITE')&&upperMid.includes('SATELLITE'),satelliteStopsAtSpace:!spaceMid.includes('SATELLITE'),meteorDelayed:!spaceEarly.includes('METEOR')&&spaceMid.includes('METEOR'),fallingMeteorLibrary:fallingMeteors.length>=6&&fallingMeteors.every(template=>template.objects.filter(item=>item.type==='meteor').every(item=>item.fallSpeed>0)),asteroidAtPlanet:planet.includes('ASTEROID'),cosmicAtGalaxy:galaxy.includes('COSMIC'),infinitePatternLibrary:INFINITE_SEGMENT_TEMPLATES.length>=30&&VALID_INFINITE_TEMPLATES.length===INFINITE_SEGMENT_TEMPLATES.length,infiniteMapModel:INFINITE_MAPS.length===4&&isInfiniteMapUnlocked('city')&&isInfiniteMapUnlocked('seoul')===Boolean(progress.completed?.SEOUL_10||progress.stars?.SEOUL_10)&&isInfiniteMapUnlocked('newyork')===(completedStageCount('newyork')>=STAGES.newyork.length)&&isInfiniteMapUnlocked('tokyo')===(completedStageCount('tokyo')>=STAGES.tokyo.length)&&INFINITE_MAPS.some(map=>map.id===selectedInfiniteMap()),seoulMapAsset:BACKGROUND_THEMES.SEOUL_GENERAL_DAY.asset==='assets/seoul/seoul_2.png'&&infiniteSeoulBackgroundTravel(0)===0&&infiniteSeoulBackgroundTravel(2550)>=1,skinPaletteValid:SKIN_SWATCHES.length===5&&validSkinId(appearance.ball)&&validSkinId(appearance.trail)&&SKIN_SWATCHES.every(swatch=>/^#[0-9a-f]{6}$/i.test(swatch.color)),ballRendererClean:!/(shadow|stroke)/.test(drawBall.toString())&&((drawBall.toString().match(/\.arc\(/g)||[]).length===1),
+        deadlyTypes:['hazard','deathwall','satellite','meteor','asteroid'].every(type=>isDeadlyObject({type})),deathWallReason:deathReasonForObject({type:'deathwall'})==='DEAD WALL',backButtonInset:drawBackButton.toString().includes('const y=58')&&drawBackButton.toString().includes('data-back-button-y'),homeBottomNavigation:drawMainMenu.toString().includes("data-home-menu-count','3")&&!drawMainMenu.toString().includes('INFINITE MODE')&&!drawMainMenu.toString().includes("action:'map'"),homeActualBall:drawHomeLogo.toString().includes("drawBall('#FFFFFF')")&&homeLogoMetrics().ballX>0,homeLineStartsInfinite:canDrawLineNow.toString().includes("game.phase==='homeIdle'")&&commitCurrentDrawing.toString().includes('launchInfiniteFromHome'),homePromptRemoved:!drawMainMenu.toString().includes('drawHomePrompt')&&drawMainMenu.toString().includes("data-home-prompt','removed'"),homeStartEased:HOME_LAYOUT.transitionDuration>=.5&&updatePhysics.toString().includes('homeGravity')&&!updateTransitions.toString().includes('ball.vy=0'),homeGradientSingleLayer:getComputedStyle(gameShell).backgroundImage.includes('linear-gradient')&&drawResponsiveViewportBackdrop.toString().includes("game.screen==='menu'")&&!drawResponsiveViewportBackdrop.toString().includes('drawResponsiveHomeGradient'),skinMapsIntegrated:drawSkinSelect.toString().includes("game.skinTab==='maps'")&&handleAction.toString().includes("action.startsWith('skinTab:')"),homeAchievementsFunctional:handleAction.toString().includes("action==='achievements'")&&drawAchievements.toString().includes('ACHIEVEMENTS.forEach'),seoulBackgroundsComplete:seoulBackgrounds.length===10&&new Set(seoulBackgrounds).size===10&&seoulBackgrounds.every(id=>Boolean(BACKGROUND_THEMES[id])),seoulAssetMapping,seoulBackgroundTravel:stageBackgroundTravel(.25)<.05&&stageBackgroundTravel(.55)===.25&&stageBackgroundTravel(.75)===.72&&stageBackgroundTravel(1)===1,seoulBrightnessRule:seoulBackgrounds.slice(0,9).every(shouldDimSeoulBackground)&&!shouldDimSeoulBackground('SEOUL_GENERAL_NIGHT'),seoulDayNightSharedLayout:BACKGROUND_THEMES.SEOUL_GENERAL_DAY.layout===BACKGROUND_THEMES.SEOUL_GENERAL_NIGHT.layout,fixedStageLayouts,newYorkTenStages:newYorkStages.length===10&&newYorkStages.every((stage,index)=>stage.id===`NEWYORK_${String(index+1).padStart(2,'0')}`&&stage.region===newYorkNames[index]),newYorkMechanics:newYorkMovingWalls.some(item=>item.type==='wall')&&newYorkMovingWalls.some(item=>item.type==='deathwall')&&newYorkMovingWalls.some(item=>item.type==='jumpwall')&&newYorkWormholes.length>=12,newYorkDeterministic:newYorkMovingWalls.every(item=>['x','y'].includes(item.movement.axis)&&Number.isFinite(item.movement.distance)&&Number.isFinite(item.movement.speed)&&Number.isFinite(item.movement.phase))&&newYorkStages.every(stage=>stageWormholesValid(stage)),newYorkImageBackgrounds:Object.keys(NEW_YORK_BACKGROUNDS).length===10&&newYorkStages.every((stage,index)=>NEW_YORK_BACKGROUNDS[stage.background]?.asset===`assets/newyork/newyork_${index+1}.png`&&Math.abs(NEW_YORK_BACKGROUNDS[stage.background].focusX-newYorkFocus[index])<.001)&&drawNewYorkBackdrop.toString().includes('drawStageImageBackdrop')&&drawResponsiveStageImageBackground.toString().includes('drawStageImageSkyExtension'),newYorkThumbnails:drawStageSelect.toString().includes('drawStageImagePreview')&&drawCityPreview.toString().includes("drawStageImagePreview('newyork01'"),worldTourSeoulPreview:drawCityPreview.toString().includes("drawStageImagePreview('SEOUL_GENERAL_DAY'"),newYorkStageSelectNight:drawStageSelect.toString().includes("newyork:'newyork10'"),tokyoTenStages:tokyoStages.length===10&&tokyoStages.every((stage,index)=>stage.id===`TOKYO_${String(index+1).padStart(2,'0')}`&&stage.region===tokyoNames[index]),tokyoMeteorCounts:tokyoStages.every((stage,index)=>(stage.meteors||[]).length===tokyoMeteorCounts[index]),tokyoMeteorDeterministic:tokyoMeteors.length===38&&new Set(tokyoMeteors.map(item=>item.id)).size===tokyoMeteors.length&&tokyoMeteors.every(item=>['x','y','vx','vy','triggerCameraY','radius','warningTime'].every(key=>Number.isFinite(item[key]))&&item.vy>0&&item.vx!==0&&item.warningTime>=.5&&item.warningTime<=.8),tokyoMechanicMix:tokyoMovingWalls.length>=5&&tokyoWormholes.length>=6&&tokyoStages.some(stage=>stage.obstacles.some(item=>item.type==='deathwall'))&&tokyoStages.some(stage=>stage.obstacles.some(item=>item.type==='jumpwall')),tokyoNoRandomGeometry:tokyoStages.every(stage=>stageLayoutSignature(stage)===stageLayoutSignature(stage)),meteorOnlyTokyoStages:[...STAGES.seoul,...STAGES.newyork].every(stage=>!(stage.meteors||[]).length),tokyoBackgroundRegistry:Object.keys(TOKYO_BACKGROUNDS).length===10&&tokyoStages.every((stage,index)=>TOKYO_BACKGROUNDS[stage.background]?.asset===`assets/tokyo/tokyo_${index+1}.png`),tokyoUnlockMigration:newYorkCompleteState.unlocked.tokyo>=1,tokyoStageSelectNight:drawStageSelect.toString().includes("tokyo:'tokyo10'"),tokyoWorldPreview:drawCityPreview.toString().includes("drawStageImagePreview('tokyo10'"),stageModeHasNoShards:allStages.every(stage=>stage.shards.length===0)&&!setupStageWorld.toString().includes('createShard'),stageMapStars:STAGES.seoul[0].stageStar===null&&allStages.filter(stage=>stage.id!=='SEOUL_01').every(stage=>Number.isFinite(stage.stageStar?.x)&&Number.isFinite(stage.stageStar?.y)),seoulOneAlwaysThree:calculateStageStarsFor(STAGES.seoul[0],999,false)===3,mapStarRequiredForThree:calculateStageStarsFor(STAGES.tokyo[0],0,false)===2&&calculateStageStarsFor(STAGES.tokyo[0],0,true)===3,mapStarNoScore:!collectStageStar.toString().includes('addScore'),stageScoreDisabled:scoreBounce.toString().includes("game.gameMode==='infinite'")&&handleSolidCollision.toString().includes("game.gameMode==='infinite'"),worldTourModernWalls:worldTourObstacles.every(item=>!['hazard','boost'].includes(item.type))&&drawLineStructure.toString().includes("outerWidth=clamp(shortSide*.68,9,12)"),cityThemesDistinct:new Set(['SEOUL_GENERAL_DAY','newyork01','tokyo01','parisMorning','dubaiDay','singaporeDay']).size===CITY_ORDER.length&&CITY_ORDER.every(city=>STAGES[city].length>0),stageDataIndependent:STAGES.seoul[4].obstacles.some(item=>item.type==='jumpwall')&&DIFFICULTY_THRESHOLDS.boost===4000,backgroundTracksRemoved:!document.querySelector('audio')&&Object.keys(settings).length===2,sfxPreserved:typeof audio.normal==='function'&&typeof audio.perfect==='function'&&typeof audio.shard==='function'&&typeof audio.boost==='function'&&typeof audio.death==='function'&&typeof audio.ui==='function'&&typeof audio.wormhole==='function'&&typeof audio.meteorWarning==='function',stageImageSkySeamFree:SEOUL_SKY_OVERLAP===4&&drawStageImageSkyExtension.toString().includes('sourceStripHeight')&&drawStageImageSkyExtension.toString().includes('scale(1,-1)')&&drawResponsiveStageImageBackground.toString().includes('drawStageImageSkyExtension'),hudHasNoTopBand:!drawHud.toString().includes('fillRect(0,0,WORLD.width,82)'),desktopFrameRemoved:getComputedStyle(gameShell).borderLeftWidth==='0px',achievementNineOfTen:completedStageCount('seoul',nineStageState)===9&&achievementProgress(CITY_COMPLETION_ACHIEVEMENTS.seoul,nineStageState).current===9,achievementTenOfTen:completedStageCount('seoul',tenStageState)===10&&achievementProgress(CITY_COMPLETION_ACHIEVEMENTS.seoul,tenStageState).current===10,legacyCompletionMigrates:seoulStageIds.every(id=>legacyState.completed[id]),achievementSaveCompatible:isAchievementUnlocked('miracle_on_han_river',savedAchievementState)&&savedAchievementState.achievements.miracle_on_han_river.unlockedAt===12345,achievementDataDriven:ACHIEVEMENTS.includes(CITY_COMPLETION_ACHIEVEMENTS.seoul)&&drawAchievementCard.toString().includes('achievementProgress'),templatesValid:VALID_INFINITE_TEMPLATES.length===INFINITE_SEGMENT_TEMPLATES.length
       };
     }
     game.selfTests=runCollisionSelfTests();window.BOUNCE_SELF_TESTS=Object.freeze({...game.selfTests});canvas.setAttribute('data-self-tests',JSON.stringify(game.selfTests));
