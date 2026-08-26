@@ -298,6 +298,7 @@
       gravity: 650, maxFallSpeed: 720, sideWallRestitution: 0.82, structureRestitution: 0.64, lineRestitution: 0.94,
       maxBallSpeed: 1040, minBounceSpeed: 560, perfectMinSpeed: 620, fixedStep: 1 / 120
     };
+    const STAGE_METEOR_SPEED_MULTIPLIER = 1.35;
     const LINE_RULES = { minLength: 34, maxLength: 142, width: 5, perfectHalfWidth: 0.17 };
     const DESKTOP_DRAW_RULES = { settleCommitDelay: 0.18 };
     const CAMERA_RULES = { deadZoneTop: 312, followSharpness: 7.5, generationAhead: 1.35, cleanupBehind: 1.45 };
@@ -693,7 +694,10 @@
         image.decoding='async';
         image.addEventListener('load',()=>{record.skyPalette=sampleStageSkyPalette(image,fallback);record.skyColor=record.skyPalette.edge;record.status='ready';updateStageAssetStatus();},{once:true});
         image.addEventListener('error',()=>{record.status='error';console.error(`[BOUNCER] ${definition.city.toUpperCase()} background not found: ${record.path}`);updateStageAssetStatus();},{once:true});
-        image.src=definition.asset;
+        image.src=
+          definition.city==='tokyo'
+            ?`${definition.asset}?v=tokyo-20260827-2`
+            :definition.asset;
       }
       updateStageAssetStatus();
     }
@@ -928,7 +932,53 @@
       return wormhole;
     }
     function createStageStar(source){if(!source)return null;worldState.stageStar={id:`stage-star-${game.currentStage?.id||'stage'}`,x:source.x,y:source.y,radius:11,angle:0,pulse:0,collected:false};return worldState.stageStar;}
-    function createStageMeteorSchedule(source){const schedule={id:source.id,triggerCameraY:Number(source.triggerCameraY)||0,x:Number(source.x)||0,y:Number(source.y)||0,vx:Number(source.vx)||0,vy:Number(source.vy)||0,radius:Number(source.radius)||13,warningTime:clamp(Number(source.warningTime)||.7,.5,.8),warningElapsed:0,state:'pending',spawnedObjectId:null};worldState.stageMeteors.push(schedule);return schedule;}
+    function createStageMeteorSchedule(source){
+      const speedMultiplier=
+        game.currentCity==='tokyo'
+          ?STAGE_METEOR_SPEED_MULTIPLIER
+          :1;
+
+      const schedule={
+        id:source.id,
+
+        triggerCameraY:
+          Number(source.triggerCameraY)||0,
+
+        x:
+          Number(source.x)||0,
+
+        y:
+          Number(source.y)||0,
+
+        vx:
+          (Number(source.vx)||0)*
+          speedMultiplier,
+
+        vy:
+          (Number(source.vy)||0)*
+          speedMultiplier,
+
+        radius:
+          Number(source.radius)||13,
+
+        warningTime:
+          clamp(
+            Number(source.warningTime)||.7,
+            .5,
+            .8
+          ),
+
+        warningElapsed:0,
+        state:'pending',
+        spawnedObjectId:null
+      };
+
+      worldState.stageMeteors.push(
+        schedule
+      );
+
+      return schedule;
+    };worldState.stageMeteors.push(schedule);return schedule;}
     function spawnStageMeteor(schedule){if(!schedule||schedule.state==='active'||schedule.state==='done')return null;const radius=schedule.radius,object=createWorldObject({type:'meteor',x:schedule.x-radius,y:schedule.y-radius,w:radius*2,h:radius*2,radius,motion:'stageMeteor',velocityX:schedule.vx,velocityY:schedule.vy,stageMeteor:true,scheduleId:schedule.id},null,true);object.motionStartedAt=game.elapsed;schedule.state='active';schedule.spawnedObjectId=object.id;return object;}
     function updateStageMeteorSchedules(dt){if(game.gameMode!=='stage'||!worldState.stageMeteors.length)return;for(const schedule of worldState.stageMeteors){if(schedule.state==='pending'&&camera.y<=schedule.triggerCameraY){schedule.state='warning';schedule.warningElapsed=0;audio.meteorWarning();}else if(schedule.state==='warning'){schedule.warningElapsed+=dt;if(schedule.warningElapsed>=schedule.warningTime)spawnStageMeteor(schedule);}}}
     function validateSegmentTemplate(template){
@@ -2665,8 +2715,331 @@
     }
 
     function drawSatellite(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2,panelW=object.w*.34,panelH=object.h*.5,bodyW=Math.max(24,object.w*.23),bodyH=object.h*.7;ctx.save();ctx.translate(cx,cy);ctx.fillStyle='#4e6b84';ctx.strokeStyle='rgba(191,223,242,.58)';ctx.lineWidth=1;ctx.fillRect(-object.w/2,-panelH/2,panelW,panelH);ctx.fillRect(object.w/2-panelW,-panelH/2,panelW,panelH);for(const side of[-1,1])for(let i=0;i<3;i++){const left=side<0?-object.w/2:object.w/2-panelW,x=left+4+i*(panelW-8)/3;ctx.strokeRect(x,-panelH/2+2,(panelW-10)/3,panelH-4);}drawRoundedRect(-bodyW/2,-bodyH/2,bodyW,bodyH,4,COLORS.dangerDark,'rgba(255,190,175,.78)',1);ctx.fillStyle=COLORS.danger;ctx.beginPath();ctx.arc(0,0,3.2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#aab9c5';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(2,-bodyH/2);ctx.lineTo(7,-object.h/2-5);ctx.stroke();ctx.beginPath();ctx.arc(8,-object.h/2-7,2.5,0,Math.PI*2);ctx.stroke();ctx.restore();}
-    function drawMeteor(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2,radius=object.radius||Math.max(object.w,object.h)/2,vx=object.renderVX||object.velocityX||object.driftSpeed||0,vy=object.renderVY||object.velocityY||object.fallSpeed||1,speed=Math.hypot(vx,vy)||1,nx=vx/speed,ny=vy/speed;ctx.save();for(let index=4;index>=1;index--){const distance=radius+index*(radius*.72),dotRadius=lerp(1.5,4.2,(5-index)/4);ctx.globalAlpha=.1+(5-index)*.09;ctx.fillStyle=index%2?COLORS.danger:'#f4a16f';ctx.beginPath();ctx.arc(cx-nx*distance,cy-ny*distance,dotRadius,0,Math.PI*2);ctx.fill();}ctx.globalAlpha=1;ctx.fillStyle='#28313b';ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#e36a5f';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,radius-1.5,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#f2a069';ctx.beginPath();ctx.arc(cx+radius*.22,cy-radius*.18,Math.max(2.2,radius*.22),0,Math.PI*2);ctx.fill();ctx.restore();}
-    function drawMeteorWarning(object,sy){const proximity=1-clamp((-sy-54)/116,0,1),x=clamp(object.x+object.w/2,18,WORLD.width-18);ctx.save();ctx.globalAlpha=.22+proximity*.48;ctx.strokeStyle=COLORS.danger;ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x-7,7);ctx.lineTo(x,14);ctx.lineTo(x+7,7);ctx.stroke();ctx.fillStyle='rgba(255,117,95,.2)';ctx.beginPath();ctx.arc(x,5,3+proximity*2,0,Math.PI*2);ctx.fill();ctx.restore();}
+    function drawMeteor(object,sy){
+
+      const cx=
+        object.x+
+        object.w/2;
+
+      const cy=
+        sy+
+        object.h/2;
+
+      const radius=
+        object.radius||
+        Math.max(
+          object.w,
+          object.h
+        )/2;
+
+
+      /*
+        실제 이동 방향을 구한다.
+        꼬리는 진행 방향의 반대쪽으로 이어진다.
+      */
+      const vx=
+        object.renderVX||
+        object.velocityX||
+        object.driftSpeed||
+        0;
+
+      const vy=
+        object.renderVY||
+        object.velocityY||
+        object.fallSpeed||
+        1;
+
+      const speed=
+        Math.max(
+          1,
+          Math.hypot(
+            vx,
+            vy
+          )
+        );
+
+      const nx=
+        vx/speed;
+
+      const ny=
+        vy/speed;
+
+
+      ctx.save();
+
+
+      // ======================================================
+      // 1. 긴 흰색 소프트 테일
+      // ======================================================
+
+      const tailCount=11;
+
+      for(
+        let index=tailCount;
+        index>=1;
+        index--
+      ){
+
+        const progress=
+          index/
+          tailCount;
+
+        /*
+          공에서 멀어질수록 간격도 조금씩 커진다.
+        */
+        const distance=
+          radius+
+          index*
+          radius*.62+
+          index*index*.12;
+
+
+        const tx=
+          cx-
+          nx*
+          distance;
+
+        const ty=
+          cy-
+          ny*
+          distance;
+
+
+        /*
+          플레이어 공 낙하 trail처럼
+          뒤쪽으로 갈수록 작고 흐려진다.
+        */
+        const alpha=
+          .035+
+          (1-progress)*
+          .22;
+
+        const trailRadius=
+          radius*
+          (
+            .18+
+            (1-progress)*
+            .34
+          );
+
+
+        ctx.globalAlpha=
+          alpha;
+
+        ctx.fillStyle=
+          '#FFFFFF';
+
+
+        ctx.beginPath();
+
+        ctx.ellipse(
+          tx,
+          ty,
+
+          trailRadius*.78,
+          trailRadius*1.28,
+
+          Math.atan2(
+            ny,
+            nx
+          )-
+          Math.PI/2,
+
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+      }
+
+
+      // ======================================================
+      // 2. 공 바로 뒤쪽의 밝은 짧은 꼬리
+      // ======================================================
+
+      for(
+        let index=1;
+        index<=4;
+        index++
+      ){
+
+        const distance=
+          radius+
+          index*
+          radius*.48;
+
+        const tx=
+          cx-
+          nx*
+          distance;
+
+        const ty=
+          cy-
+          ny*
+          distance;
+
+        ctx.globalAlpha=
+          .30-
+          index*.045;
+
+        ctx.fillStyle=
+          '#FFFFFF';
+
+        ctx.beginPath();
+
+        ctx.arc(
+          tx,
+          ty,
+          Math.max(
+            1.4,
+            radius*
+            (
+              .43-
+              index*.055
+            )
+          ),
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+      }
+
+
+      // ======================================================
+      // 3. 아주 은은한 흰색 glow
+      // ======================================================
+
+      ctx.globalAlpha=.18;
+
+      ctx.shadowColor=
+        '#FFFFFF';
+
+      ctx.shadowBlur=
+        11;
+
+      ctx.fillStyle=
+        '#FFFFFF';
+
+      ctx.beginPath();
+
+      ctx.arc(
+        cx,
+        cy,
+        radius*1.06,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
+
+
+      // ======================================================
+      // 4. 본체
+      //
+      // 플레이어 BOUNCER 공과 같은
+      // 외곽선 없는 순백색 원.
+      // ======================================================
+
+      ctx.shadowBlur=0;
+      ctx.globalAlpha=1;
+
+      ctx.fillStyle=
+        '#FFFFFF';
+
+      ctx.beginPath();
+
+      ctx.arc(
+        cx,
+        cy,
+        radius,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
+
+
+      ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-meteor-visual',
+        'bouncer-white-ball-long-trail'
+      );
+    }
+
+
+    function drawMeteorWarning(object,sy){
+
+      const proximity=
+        1-
+        clamp(
+          (-sy-54)/116,
+          0,
+          1
+        );
+
+      const x=
+        clamp(
+          object.x+
+          object.w/2,
+          18,
+          WORLD.width-18
+        );
+
+
+      ctx.save();
+
+
+      // 위험 표시는 붉은색 유지
+      ctx.globalAlpha=
+        .30+
+        proximity*.55;
+
+      ctx.strokeStyle=
+        COLORS.danger;
+
+      ctx.lineWidth=1.8;
+      ctx.lineCap='round';
+
+
+      ctx.beginPath();
+
+      ctx.arc(
+        x,
+        10,
+        7+
+        proximity*2,
+        Math.PI*.15,
+        Math.PI*.85
+      );
+
+      ctx.stroke();
+
+
+      // 실제 유성 색상을 암시하는 흰 점
+      ctx.fillStyle=
+        '#FFFFFF';
+
+      ctx.beginPath();
+
+      ctx.arc(
+        x,
+        9,
+        2.5+
+        proximity*1.2,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
+
+
+      ctx.restore();
+    }
+
+
     function drawStageMeteorWarnings(){for(const schedule of worldState.stageMeteors){if(schedule.state!=='warning')continue;const progress=clamp(schedule.warningElapsed/schedule.warningTime,0,1),pulse=.65+.35*Math.sin(game.uiTime*22),screenY=schedule.y-camera.y,x=clamp(schedule.x,16,WORLD.width-16),y=clamp(screenY,16,WORLD.height-16),speed=Math.hypot(schedule.vx,schedule.vy)||1,nx=schedule.vx/speed,ny=schedule.vy/speed;ctx.save();ctx.globalAlpha=.42+progress*.42;ctx.fillStyle=COLORS.danger;ctx.beginPath();ctx.arc(x,y,3.5+pulse*2,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f4a16f';ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(x-nx*10,y-ny*10);ctx.lineTo(x+nx*9,y+ny*9);ctx.stroke();ctx.restore();}}
     function drawAsteroid(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(game.uiTime*.16+object.movePhase);ctx.fillStyle='#756c70';ctx.strokeStyle='rgba(255,117,95,.72)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-object.w*.45,-object.h*.1);ctx.lineTo(-object.w*.2,-object.h*.48);ctx.lineTo(object.w*.27,-object.h*.4);ctx.lineTo(object.w*.48,-object.h*.05);ctx.lineTo(object.w*.31,object.h*.42);ctx.lineTo(-object.w*.24,object.h*.47);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='rgba(30,29,34,.28)';ctx.beginPath();ctx.arc(-5,-3,4,0,Math.PI*2);ctx.arc(7,6,3,0,Math.PI*2);ctx.fill();ctx.restore();}
     function drawBoost(object,sy){const scaleY=boostScale(object);ctx.save();ctx.translate(0,sy+object.h);ctx.scale(1,scaleY);ctx.translate(0,-(sy+object.h));ctx.globalAlpha=object.used?.38:1;drawLineStructure(object,sy,'jump');ctx.restore();}
