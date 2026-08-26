@@ -768,7 +768,40 @@
     // =========================================================================
     function createWorldObject(source,segmentId=null,deterministic=false){const movement=source.movement||null,axis=movement?.axis,distance=Math.max(0,Number(movement?.distance)||0),moveX=axis==='x'?distance:source.moveX||0,moveY=axis==='y'?distance:source.moveY||0,moveSpeed=Math.max(0,Number(movement?.speed??source.moveSpeed)||0),movePhase=movement?.phase??source.movePhase,object={id:`o${++worldState.objectSerial}`,type:source.type,x:source.x,y:source.y,previousX:source.x,previousY:source.y,w:source.w,h:source.h,baseX:source.x,baseY:source.y,moveX,moveY,moveSpeed,movePhase:movePhase===undefined?(deterministic?0:randomRange(0,Math.PI*2)):movePhase,movement:movement?{axis,distance,speed:moveSpeed,phase:movePhase||0}:null,motion:source.motion||'oscillate',fallSpeed:source.fallSpeed||0,driftSpeed:source.driftSpeed||0,velocityX:Number(source.velocityX??source.vx)||0,velocityY:Number(source.velocityY??source.vy)||0,radius:Number(source.radius)||Math.max(Number(source.w)||0,Number(source.h)||0)/2,stageMeteor:Boolean(source.stageMeteor),scheduleId:source.scheduleId||'',motionStartedAt:null,renderVX:0,renderVY:0,used:false,pulse:0,segmentId};worldState.objects.push(object);return object;}
     function createShard(source,segmentId=null,deterministic=false){const stablePulse=((source.x*.013+source.y*.007)%(Math.PI*2)+Math.PI*2)%(Math.PI*2),shard={id:`s${++worldState.objectSerial}`,x:source.x,y:source.y,radius:9,angle:Math.PI/4,pulse:deterministic?stablePulse:randomRange(0,Math.PI*2),segmentId};worldState.shards.push(shard);return shard;}
-    function createWormhole(source){const wormhole={id:source.id,pairId:source.pairId,x:source.x,y:source.y,radius:source.radius||27,orientation:Number(source.orientation)||0,color:source.color||COLORS.accent};worldState.wormholes.push(wormhole);const pair=worldState.wormholePairs.get(wormhole.pairId)||[];pair.push(wormhole);worldState.wormholePairs.set(wormhole.pairId,pair);return wormhole;}
+    function createWormhole(source){
+      const wormhole={
+        id:source.id,
+        pairId:source.pairId,
+        x:source.x,
+        y:source.y,
+        radius:source.radius||27,
+
+        // 기존 orientation 값은 데이터 호환용으로만 보존.
+        // 실제 순간이동 방향에는 더 이상 사용하지 않는다.
+        orientation:Number(source.orientation)||0,
+
+        // 모든 포탈은 동일한 BOUNCER blue + white 디자인.
+        color:COLORS.accent,
+
+        used:false
+      };
+
+      worldState.wormholes.push(wormhole);
+
+      const pair=
+        worldState.wormholePairs.get(
+          wormhole.pairId
+        )||[];
+
+      pair.push(wormhole);
+
+      worldState.wormholePairs.set(
+        wormhole.pairId,
+        pair
+      );
+
+      return wormhole;
+    }
     function createStageStar(source){if(!source)return null;worldState.stageStar={id:`stage-star-${game.currentStage?.id||'stage'}`,x:source.x,y:source.y,radius:11,angle:0,pulse:0,collected:false};return worldState.stageStar;}
     function createStageMeteorSchedule(source){const schedule={id:source.id,triggerCameraY:Number(source.triggerCameraY)||0,x:Number(source.x)||0,y:Number(source.y)||0,vx:Number(source.vx)||0,vy:Number(source.vy)||0,radius:Number(source.radius)||13,warningTime:clamp(Number(source.warningTime)||.7,.5,.8),warningElapsed:0,state:'pending',spawnedObjectId:null};worldState.stageMeteors.push(schedule);return schedule;}
     function spawnStageMeteor(schedule){if(!schedule||schedule.state==='active'||schedule.state==='done')return null;const radius=schedule.radius,object=createWorldObject({type:'meteor',x:schedule.x-radius,y:schedule.y-radius,w:radius*2,h:radius*2,radius,motion:'stageMeteor',velocityX:schedule.vx,velocityY:schedule.vy,stageMeteor:true,scheduleId:schedule.id},null,true);object.motionStartedAt=game.elapsed;schedule.state='active';schedule.spawnedObjectId=object.id;return object;}
@@ -1036,8 +1069,434 @@
     function sweptObjectCollision(previous,current,radius,object,velocity){if(object.type==='meteor')return sweptCircleCircleObjectCollision(previous,current,radius,object,velocity);const deltaX=object.x-(object.previousX??object.x),deltaY=object.y-(object.previousY??object.y),relativePrevious={x:previous.x+deltaX,y:previous.y+deltaY},relativeVelocity={vx:velocity.vx-(object.renderVX||0),vy:velocity.vy-(object.renderVY||0)};let earliest=null;for(const rect of getObjectCollisionRects(object)){const hit=sweptCircleRectCollision(relativePrevious,current,radius,rect,relativeVelocity);if(hit&&(!earliest||hit.time<earliest.hit.time))earliest={hit,rect};}return earliest;}
     function sweptPointCircleTime(previous,current,center,radius){const dx=current.x-previous.x,dy=current.y-previous.y,fx=previous.x-center.x,fy=previous.y-center.y,a=dx*dx+dy*dy,c=fx*fx+fy*fy-radius*radius;if(c<=0)return 0;if(a<.000001)return null;const b=2*(fx*dx+fy*dy),discriminant=b*b-4*a*c;if(discriminant<0)return null;const root=Math.sqrt(discriminant),t1=(-b-root)/(2*a),t2=(-b+root)/(2*a);if(t1>=0&&t1<=1)return t1;if(t2>=0&&t2<=1)return t2;return null;}
     function rotateVelocity(velocity,angle){const cos=Math.cos(angle),sin=Math.sin(angle);return{vx:velocity.vx*cos-velocity.vy*sin,vy:velocity.vx*sin+velocity.vy*cos};}
-    function pairedWormhole(wormhole){const pair=worldState.wormholePairs.get(wormhole.pairId)||[];return pair.find(candidate=>candidate.id!==wormhole.id)||null;}
-    function checkWormholeCollisions(){if(ball.wormholeCooldown>0||!worldState.wormholes.length)return false;const previous={x:ball.previousX,y:ball.previousY},current={x:ball.x,y:ball.y};let entry=null,entryTime=Infinity;for(const wormhole of worldState.wormholes){const time=sweptPointCircleTime(previous,current,wormhole,wormhole.radius);if(time!==null&&time<entryTime){entry=wormhole;entryTime=time;}}if(!entry)return false;const exit=pairedWormhole(entry);if(!exit)return false;const rotated=rotateVelocity({vx:ball.vx,vy:ball.vy},exit.orientation-entry.orientation),offset=exit.radius+ball.radius+6,exitX=exit.x+Math.cos(exit.orientation)*offset,exitY=exit.y+Math.sin(exit.orientation)*offset;spawnBurst(entry.x,entry.y,12,entry.color,155,.34,'diamond');spawnBurst(exit.x,exit.y,12,exit.color,155,.34,'diamond');ball.x=clamp(exitX,ball.radius,WORLD.width-ball.radius);ball.y=exitY;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=rotated.vx;ball.vy=rotated.vy;ball.wormholeCooldown=.22;effects.trail.length=0;addShake(1.7);audio.wormhole();canvas.setAttribute('data-last-wormhole',`${entry.id}>${exit.id}`);return true;}
+    function pairedWormhole(wormhole){
+      const pair=
+        worldState.wormholePairs.get(
+          wormhole.pairId
+        )||[];
+
+      return pair.find(
+        candidate=>
+          candidate.id!==wormhole.id
+      )||null;
+    }
+
+
+    // ---------------------------------------------------------
+    // 한 쌍에서 아래쪽 포탈 = ENTRY
+    // y 값이 클수록 게임 월드에서 아래에 위치한다.
+    // ---------------------------------------------------------
+    function wormholePairEnds(pairId){
+
+      const pair=
+        worldState.wormholePairs.get(
+          pairId
+        )||[];
+
+      if(pair.length<2){
+        return null;
+      }
+
+      const sorted=
+        [...pair].sort(
+          (a,b)=>a.y-b.y
+        );
+
+      return{
+        exit:sorted[0],
+        entry:sorted[sorted.length-1]
+      };
+    }
+
+
+    // ---------------------------------------------------------
+    // 포탈 파괴 효과
+    // 플레이어 선이 공에 맞아 산산이 부서지는 느낌을 재사용한다.
+    // ---------------------------------------------------------
+    function shatterWormhole(wormhole){
+
+      const pieces=14;
+
+      for(
+        let i=0;
+        i<pieces;
+        i++
+      ){
+
+        const angle=
+          (i/pieces)*
+          Math.PI*2;
+
+        const radius=
+          wormhole.radius+
+          randomRange(
+            -2,
+            3
+          );
+
+        const x=
+          wormhole.x+
+          Math.cos(angle)*
+          radius;
+
+        const y=
+          wormhole.y+
+          Math.sin(angle)*
+          radius;
+
+        const speed=
+          randomRange(
+            55,
+            145
+          );
+
+        const life=
+          randomRange(
+            .18,
+            .30
+          );
+
+        effects.fragments.push({
+          x,
+          y,
+
+          // 원의 접선 방향 조각
+          angle:
+            angle+
+            Math.PI/2,
+
+          length:
+            randomRange(
+              7,
+              13
+            ),
+
+          // 바깥쪽으로 터진다.
+          vx:
+            Math.cos(angle)*
+            speed,
+
+          vy:
+            Math.sin(angle)*
+            speed-
+            randomRange(
+              15,
+              45
+            ),
+
+          spin:
+            randomRange(
+              -8,
+              8
+            ),
+
+          life,
+          maxLife:life,
+
+          // 흰색 / 파란색 교차
+          color:
+            i%2===0
+              ? '#FFFFFF'
+              : '#82C7FF'
+        });
+      }
+
+
+      // 작은 빛 조각
+      for(
+        let i=0;
+        i<8;
+        i++
+      ){
+
+        const angle=
+          randomRange(
+            0,
+            Math.PI*2
+          );
+
+        const distance=
+          randomRange(
+            2,
+            wormhole.radius*.7
+          );
+
+        const color=
+          i%2===0
+            ? '#FFFFFF'
+            : '#82C7FF';
+
+        spawnBurst(
+          wormhole.x+
+            Math.cos(angle)*
+            distance,
+
+          wormhole.y+
+            Math.sin(angle)*
+            distance,
+
+          1,
+          color,
+          randomRange(
+            80,
+            170
+          ),
+          .30,
+          'diamond'
+        );
+      }
+    }
+
+
+    function consumeWormholePair(pairId){
+
+      const pair=
+        worldState.wormholePairs.get(
+          pairId
+        );
+
+      if(
+        !pair ||
+        !pair.length
+      ){
+        return;
+      }
+
+
+      // 두 포탈 모두 동시에 파괴
+      for(
+        const wormhole of pair
+      ){
+        wormhole.used=true;
+        shatterWormhole(
+          wormhole
+        );
+      }
+
+
+      const ids=
+        new Set(
+          pair.map(
+            wormhole=>
+              wormhole.id
+          )
+        );
+
+
+      // 실제 월드에서는 즉시 제거.
+      // fragments만 남아서 사라지는 애니메이션을 보여준다.
+      worldState.wormholes=
+        worldState.wormholes.filter(
+          wormhole=>
+            !ids.has(
+              wormhole.id
+            )
+        );
+
+
+      worldState.wormholePairs.delete(
+        pairId
+      );
+    }
+
+
+    function checkWormholeCollisions(){
+
+      if(
+        ball.wormholeCooldown>0 ||
+        !worldState.wormholes.length
+      ){
+        return false;
+      }
+
+
+      const previous={
+        x:ball.previousX,
+        y:ball.previousY
+      };
+
+      const current={
+        x:ball.x,
+        y:ball.y
+      };
+
+
+      let selected=null;
+      let selectedTime=Infinity;
+
+
+      /*
+        중요:
+        위쪽 포탈은 출구라서 직접 들어갈 수 없다.
+        아래쪽 포탈만 충돌 판정을 가진다.
+      */
+      for(
+        const wormhole of worldState.wormholes
+      ){
+
+        const ends=
+          wormholePairEnds(
+            wormhole.pairId
+          );
+
+        if(
+          !ends ||
+          ends.entry.id!==wormhole.id
+        ){
+          continue;
+        }
+
+
+        const time=
+          sweptPointCircleTime(
+            previous,
+            current,
+            wormhole,
+            wormhole.radius+
+              ball.radius*.15
+          );
+
+
+        if(
+          time!==null &&
+          time<selectedTime
+        ){
+          selected={
+            entry:ends.entry,
+            exit:ends.exit
+          };
+
+          selectedTime=time;
+        }
+      }
+
+
+      if(!selected){
+        return false;
+      }
+
+
+      const entry=
+        selected.entry;
+
+      const exit=
+        selected.exit;
+
+
+      // 입장하기 직전 속도의 크기는 살짝 반영한다.
+      const incomingSpeed=
+        Math.hypot(
+          ball.vx,
+          ball.vy
+        );
+
+
+      /*
+        EXIT 규칙
+
+        포탈 orientation 무시.
+        언제나 위쪽으로 발사.
+
+        기존처럼 회전 계산을 하지 않기 때문에
+        출구에서 아래나 반대 방향으로 나가는 현상이 사라진다.
+      */
+      const exitSpeed=
+        clamp(
+          Math.max(
+            680,
+            incomingSpeed*.92
+          ),
+          680,
+          PHYSICS.maxBallSpeed*.92
+        );
+
+
+      const exitOffset=
+        exit.radius+
+        ball.radius+
+        10;
+
+
+      // 위쪽 출구 중심 바로 위에 생성
+      ball.x=
+        clamp(
+          exit.x,
+          ball.radius,
+          WORLD.width-
+            ball.radius
+        );
+
+      ball.y=
+        exit.y-
+        exitOffset;
+
+
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
+
+
+      // 항상 위쪽
+      ball.vx=0;
+      ball.vy=-exitSpeed;
+
+
+      ball.wormholeCooldown=.28;
+
+
+      // 이전 궤적 제거
+      effects.trail.length=0;
+
+
+      // 순간이동 빛 효과
+      spawnBurst(
+        entry.x,
+        entry.y,
+        10,
+        '#82C7FF',
+        155,
+        .28,
+        'diamond'
+      );
+
+      spawnBurst(
+        exit.x,
+        exit.y,
+        12,
+        '#FFFFFF',
+        175,
+        .30,
+        'diamond'
+      );
+
+
+      /*
+        한 번 사용하면 두 포탈 모두 파괴.
+      */
+      consumeWormholePair(
+        entry.pairId
+      );
+
+
+      addShake(
+        2.4
+      );
+
+      audio.wormhole();
+
+
+      canvas.setAttribute(
+        'data-last-wormhole',
+        `${entry.id}>${exit.id}:UP:CONSUMED`
+      );
+
+
+      return true;
+    }
+
+
     function checkStructureCollisions(){
       const previous={x:ball.previousX,y:ball.previousY},current={x:ball.x,y:ball.y},velocity={vx:ball.vx,vy:ball.vy};let hazard=null;
       for(const object of worldState.objects){if(!isDeadlyObject(object))continue;const collision=sweptObjectCollision(previous,current,ball.radius,object,velocity);if(collision&&(!hazard||collision.hit.time<hazard.hit.time))hazard={hit:collision.hit,object};}
@@ -1726,7 +2185,274 @@
     function drawAsteroid(object,sy){const cx=object.x+object.w/2,cy=sy+object.h/2;ctx.save();ctx.translate(cx,cy);ctx.rotate(game.uiTime*.16+object.movePhase);ctx.fillStyle='#756c70';ctx.strokeStyle='rgba(255,117,95,.72)';ctx.lineWidth=1.4;ctx.beginPath();ctx.moveTo(-object.w*.45,-object.h*.1);ctx.lineTo(-object.w*.2,-object.h*.48);ctx.lineTo(object.w*.27,-object.h*.4);ctx.lineTo(object.w*.48,-object.h*.05);ctx.lineTo(object.w*.31,object.h*.42);ctx.lineTo(-object.w*.24,object.h*.47);ctx.closePath();ctx.fill();ctx.stroke();ctx.fillStyle='rgba(30,29,34,.28)';ctx.beginPath();ctx.arc(-5,-3,4,0,Math.PI*2);ctx.arc(7,6,3,0,Math.PI*2);ctx.fill();ctx.restore();}
     function drawBoost(object,sy){const scaleY=boostScale(object);ctx.save();ctx.translate(0,sy+object.h);ctx.scale(1,scaleY);ctx.translate(0,-(sy+object.h));ctx.globalAlpha=object.used?.38:1;drawLineStructure(object,sy,'jump');ctx.restore();}
     function drawMovementGuide(object){if(!object.movement)return;const centerX=object.baseX+object.w/2,centerY=worldToScreenY(object.baseY+object.h/2),distance=object.movement.distance;ctx.save();ctx.strokeStyle='rgba(215,229,238,.13)';ctx.lineWidth=1;ctx.setLineDash([3,6]);ctx.beginPath();if(object.movement.axis==='x'){ctx.moveTo(centerX-distance,centerY);ctx.lineTo(centerX+distance,centerY);}else{ctx.moveTo(centerX,centerY-distance);ctx.lineTo(centerX,centerY+distance);}ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='rgba(215,229,238,.2)';for(const direction of[-1,1]){const x=object.movement.axis==='x'?centerX+direction*distance:centerX,y=object.movement.axis==='y'?centerY+direction*distance:centerY;ctx.beginPath();ctx.arc(x,y,2,0,Math.PI*2);ctx.fill();}ctx.restore();}
-    function drawWormhole(wormhole){const sy=worldToScreenY(wormhole.y);if(sy+wormhole.radius<-35||sy-wormhole.radius>WORLD.height+35)return;const angle=game.elapsed*.72+(wormhole.pairId.charCodeAt(0)%5)*.4;ctx.save();ctx.translate(wormhole.x,sy);ctx.strokeStyle=colorWithAlpha(wormhole.color,.26);ctx.lineWidth=5;ctx.beginPath();ctx.arc(0,0,wormhole.radius,0,Math.PI*2);ctx.stroke();ctx.strokeStyle=colorWithAlpha(wormhole.color,.9);ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,wormhole.radius-3,0,Math.PI*2);ctx.stroke();for(let i=0;i<3;i++){ctx.save();ctx.rotate(angle+i*2.1);ctx.strokeStyle=colorWithAlpha(wormhole.color,.72-i*.13);ctx.lineWidth=2.2-i*.35;ctx.beginPath();ctx.arc(0,0,wormhole.radius-8-i*4,-.65,.72);ctx.stroke();ctx.restore();}ctx.fillStyle=colorWithAlpha(wormhole.color,.13);ctx.beginPath();ctx.arc(0,0,wormhole.radius-9,0,Math.PI*2);ctx.fill();ctx.rotate(wormhole.orientation);ctx.strokeStyle=colorWithAlpha(wormhole.color,.76);ctx.lineWidth=1.6;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(wormhole.radius-6,0);ctx.lineTo(wormhole.radius+5,0);ctx.moveTo(wormhole.radius+1,-4);ctx.lineTo(wormhole.radius+5,0);ctx.lineTo(wormhole.radius+1,4);ctx.stroke();ctx.restore();}
+    function drawWormhole(wormhole){
+
+      if(wormhole.used){
+        return;
+      }
+
+
+      const sy=
+        worldToScreenY(
+          wormhole.y
+        );
+
+
+      if(
+        sy+
+          wormhole.radius<
+          -40 ||
+
+        sy-
+          wormhole.radius>
+          WORLD.height+
+          40
+      ){
+        return;
+      }
+
+
+      const r=
+        wormhole.radius;
+
+      const time=
+        game.elapsed;
+
+      const pulse=
+        .5+
+        .5*
+        Math.sin(
+          time*4.2+
+          wormhole.x*.017
+        );
+
+
+      ctx.save();
+
+      ctx.translate(
+        wormhole.x,
+        sy
+      );
+
+
+      // -----------------------------------------------------
+      // 은은한 BLUE halo
+      // -----------------------------------------------------
+
+      ctx.shadowColor=
+        'rgba(130,199,255,.72)';
+
+      ctx.shadowBlur=
+        12+
+        pulse*7;
+
+
+      ctx.strokeStyle=
+        'rgba(130,199,255,.28)';
+
+      ctx.lineWidth=7;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        0,
+        0,
+        r+3,
+        0,
+        Math.PI*2
+      );
+
+      ctx.stroke();
+
+
+      ctx.shadowBlur=0;
+
+
+      // -----------------------------------------------------
+      // BLUE outer ring
+      // -----------------------------------------------------
+
+      ctx.strokeStyle=
+        '#82C7FF';
+
+      ctx.lineWidth=4.6;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        0,
+        0,
+        r,
+        0,
+        Math.PI*2
+      );
+
+      ctx.stroke();
+
+
+      // -----------------------------------------------------
+      // WHITE inner ring
+      // -----------------------------------------------------
+
+      ctx.strokeStyle=
+        '#FFFFFF';
+
+      ctx.lineWidth=2.4;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        0,
+        0,
+        r-6,
+        0,
+        Math.PI*2
+      );
+
+      ctx.stroke();
+
+
+      // -----------------------------------------------------
+      // 중앙은 살짝 투명한 파란색
+      // -----------------------------------------------------
+
+      const center=
+        ctx.createRadialGradient(
+          0,
+          0,
+          0,
+          0,
+          0,
+          r-7
+        );
+
+      center.addColorStop(
+        0,
+        'rgba(255,255,255,.08)'
+      );
+
+      center.addColorStop(
+        .48,
+        'rgba(130,199,255,.15)'
+      );
+
+      center.addColorStop(
+        1,
+        'rgba(130,199,255,.04)'
+      );
+
+      ctx.fillStyle=
+        center;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        0,
+        0,
+        r-7,
+        0,
+        Math.PI*2
+      );
+
+      ctx.fill();
+
+
+      // -----------------------------------------------------
+      // 회전하는 흰색 / 파란색 arc
+      // 방향 화살표는 없음.
+      // -----------------------------------------------------
+
+      const rotation=
+        time*1.25;
+
+
+      for(
+        let i=0;
+        i<4;
+        i++
+      ){
+
+        const start=
+          rotation+
+          i*
+          Math.PI/2;
+
+        ctx.strokeStyle=
+          i%2===0
+            ? '#FFFFFF'
+            : '#82C7FF';
+
+        ctx.globalAlpha=
+          .76;
+
+        ctx.lineWidth=
+          2.1;
+
+        ctx.lineCap=
+          'round';
+
+        ctx.beginPath();
+
+        ctx.arc(
+          0,
+          0,
+          r-11,
+          start,
+          start+.56
+        );
+
+        ctx.stroke();
+      }
+
+
+      // 작은 orbit 점
+      ctx.globalAlpha=
+        .9;
+
+      for(
+        let i=0;
+        i<3;
+        i++
+      ){
+
+        const angle=
+          -rotation*.72+
+          i*
+          Math.PI*2/3;
+
+        const orbitR=
+          r-3;
+
+        ctx.fillStyle=
+          i===0
+            ? '#FFFFFF'
+            : '#82C7FF';
+
+        ctx.beginPath();
+
+        ctx.arc(
+          Math.cos(angle)*
+            orbitR,
+
+          Math.sin(angle)*
+            orbitR,
+
+          i===0
+            ? 2.1
+            : 1.55,
+
+          0,
+          Math.PI*2
+        );
+
+        ctx.fill();
+      }
+
+
+      ctx.restore();
+    }
+
+
     function drawStructures(){canvas.setAttribute('data-wall-visual','flat-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
     function shardDiamondPath(radius){ctx.beginPath();ctx.moveTo(0,-radius);ctx.lineTo(radius*.72,0);ctx.lineTo(0,radius);ctx.lineTo(-radius*.72,0);ctx.closePath();}
     function drawShards(){
