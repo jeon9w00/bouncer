@@ -298,8 +298,8 @@
       { id:'sky', label:'SKY', altitude:0, minBounces:0 },
       { id:'upper', label:'UPPER ATMOSPHERE', altitude:PHASE_ALTITUDES.SKY_END, minBounces:8 },
       { id:'space', label:'SPACE', altitude:PHASE_ALTITUDES.ATMOSPHERE_END, minBounces:20 },
-      { id:'planet', label:'PLANET REGION', altitude:PHASE_ALTITUDES.SPACE_END, minBounces:40 },
-      { id:'galaxy', label:'GALAXY', altitude:PHASE_ALTITUDES.PLANET_END, minBounces:70 }
+      { id:'planet', label:'ORBITAL SPACE', altitude:PHASE_ALTITUDES.SPACE_END, minBounces:40 },
+      { id:'galaxy', label:'DEEP SPACE', altitude:PHASE_ALTITUDES.PLANET_END, minBounces:70 }
     ]);
     const ALTITUDE_RULES = Object.freeze({
       climbProfile:Object.freeze([{climb:0,km:0},{climb:2600,km:15},{climb:8000,km:100},{climb:15000,km:800},{climb:32000,km:5000}]),
@@ -1133,7 +1133,344 @@
       canvas.setAttribute('data-infinite-city-y','0');
     }
     function fillHomeSkyGradientWorld(transition=0){const stops=[[0,'#5A9DE1'],[.27,'#7CB4E8'],[.52,'#A7CCEE'],[.75,'#D2E6F6'],[.90,'#EFF8FD'],[1,'#FFFFFF']],gradient=ctx.createLinearGradient(0,0,0,WORLD.height);for(const[position,color]of stops){const upperTarget=mixColor('#315b7b','#172d48',position);gradient.addColorStop(position,mixColor(color,upperTarget,transition));}ctx.fillStyle=gradient;ctx.fillRect(0,0,WORLD.width,WORLD.height);}
-    function drawInfiniteBackdrop(){const altitude=game.displayAltitude,phase=getInfinitePhase(),climb=Math.max(0,game.totalClimbDistance),topColors=['#6FA6DE','#315b7b','#0e1a2e','#17162d','#181333'],bottomColors=['#FFFFFF','#172d48','#070e1c','#0d0c1d','#0c091d'],blend=phase.blend,nextIndex=Math.min(phase.index+1,topColors.length-1),visualPhase=phase.index+blend;if(phase.index===0)fillHomeSkyGradientWorld(blend);else fillVerticalGradient(mixColor(topColors[phase.index],topColors[nextIndex],blend),mixColor(bottomColors[phase.index],bottomColors[nextIndex],blend));const starAlpha=smoothstep((visualPhase-.72)/1.18);drawStars(starAlpha,visualPhase>=3.85?82:58);drawGalaxy(smoothstep((visualPhase-3.78)/.22));drawPlanetBackground(smoothstep((visualPhase-2.76)/.24),altitude);drawEarthCurvature(smoothstep((visualPhase-.76)/.42)*(1-smoothstep((visualPhase-2.55)/.65)),altitude);drawInfiniteOrigin(climb);const cloudAlpha=.25*(1-smoothstep((climb-2350)/900));drawWorldCloudBand(-900,1.18,cloudAlpha);drawWorldCloudBand(-1370,1.38,cloudAlpha*.92);drawWorldCloudBand(-1830,1.08,cloudAlpha*.78);const highCloudAlpha=smoothstep((climb-450)/700)*(1-smoothstep((climb-2500)/700));drawClouds(highCloudAlpha*.32,game.uiTime*2.2-camera.y*.004);}
+    // =========================================================
+    // INFINITE — CONTINUOUS ATMOSPHERE → SPACE
+    //
+    // 더 이상 Earth / Planet / Galaxy 배경을 단계별로 띄우지 않는다.
+    // 고도에 따라서 하나의 하늘이 천천히 어두워진다.
+    // =========================================================
+    function infiniteAtmospherePalette(altitude=game.displayAltitude){
+
+      const km=Math.max(
+        0,
+        Number(altitude)||0
+      );
+
+      /*
+        0km
+          밝은 파란 하늘
+
+        15km
+          진한 파란색
+
+        40km
+          성층권 느낌
+
+        100km
+          우주 경계
+
+        300km+
+          거의 검정
+
+        갑자기 색이 바뀌지 않도록
+        구간마다 smoothstep으로 연결한다.
+      */
+
+      let top;
+      let bottom;
+
+      if(km<15){
+
+        const t=smoothstep(
+          km/15
+        );
+
+        top=mixColor(
+          '#5A9DE1',
+          '#376F9F',
+          t
+        );
+
+        bottom=mixColor(
+          '#FFFFFF',
+          '#B7D4E5',
+          t
+        );
+
+      }else if(km<40){
+
+        const t=smoothstep(
+          (km-15)/25
+        );
+
+        top=mixColor(
+          '#376F9F',
+          '#1E496F',
+          t
+        );
+
+        bottom=mixColor(
+          '#B7D4E5',
+          '#668DA8',
+          t
+        );
+
+      }else if(km<100){
+
+        const t=smoothstep(
+          (km-40)/60
+        );
+
+        top=mixColor(
+          '#1E496F',
+          '#0B1D35',
+          t
+        );
+
+        bottom=mixColor(
+          '#668DA8',
+          '#1E3A52',
+          t
+        );
+
+      }else if(km<300){
+
+        const t=smoothstep(
+          (km-100)/200
+        );
+
+        top=mixColor(
+          '#0B1D35',
+          '#040912',
+          t
+        );
+
+        bottom=mixColor(
+          '#1E3A52',
+          '#0A1421',
+          t
+        );
+
+      }else{
+
+        /*
+          깊은 우주도 완전 #000000 한 색으로 만들지 않고
+          아주 약한 남색을 남겨 공/벽 가독성을 유지.
+        */
+
+        const t=smoothstep(
+          Math.min(
+            1,
+            (km-300)/1500
+          )
+        );
+
+        top=mixColor(
+          '#040912',
+          '#010308',
+          t
+        );
+
+        bottom=mixColor(
+          '#0A1421',
+          '#030711',
+          t
+        );
+      }
+
+      /*
+        별 등장 시점
+
+        25km 이하 : 거의 없음
+        25~80km   : 아주 조금
+        80~180km  : 서서히 증가
+        180km+    : 우주 느낌
+      */
+
+      const starAlpha=
+        smoothstep(
+          (km-25)/150
+        );
+
+      /*
+        낮의 밝은 안개가 천천히 사라짐.
+      */
+
+      const hazeAlpha=
+        1-
+        smoothstep(
+          (km-10)/90
+        );
+
+      return{
+        top,
+        bottom,
+        starAlpha,
+        hazeAlpha
+      };
+    }
+
+
+    function drawInfiniteBackdrop(){
+
+      const altitude=
+        Math.max(
+          0,
+          game.displayAltitude
+        );
+
+      const climb=
+        Math.max(
+          0,
+          game.totalClimbDistance
+        );
+
+      const palette=
+        infiniteAtmospherePalette(
+          altitude
+        );
+
+      // -----------------------------------------------------
+      // 하나의 연속적인 세로 하늘
+      // -----------------------------------------------------
+
+      const gradient=
+        ctx.createLinearGradient(
+          0,
+          0,
+          0,
+          WORLD.height
+        );
+
+      gradient.addColorStop(
+        0,
+        palette.top
+      );
+
+      gradient.addColorStop(
+        1,
+        palette.bottom
+      );
+
+      ctx.fillStyle=
+        gradient;
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+
+      // -----------------------------------------------------
+      // 낮은 고도일 때만 아주 약한 밝은 대기층
+      // -----------------------------------------------------
+
+      if(palette.hazeAlpha>0.001){
+
+        const haze=
+          ctx.createLinearGradient(
+            0,
+            WORLD.height*.34,
+            0,
+            WORLD.height
+          );
+
+        haze.addColorStop(
+          0,
+          'rgba(255,255,255,0)'
+        );
+
+        haze.addColorStop(
+          1,
+          `rgba(238,248,255,${.18*palette.hazeAlpha})`
+        );
+
+        ctx.fillStyle=
+          haze;
+
+        ctx.fillRect(
+          0,
+          WORLD.height*.3,
+          WORLD.width,
+          WORLD.height*.7
+        );
+      }
+
+
+      // -----------------------------------------------------
+      // 별은 갑자기 등장하지 않고 천천히 보인다.
+      // -----------------------------------------------------
+
+      drawStars(
+        palette.starAlpha*.92,
+        altitude>400
+          ? 84
+          : altitude>120
+            ? 68
+            : 52
+      );
+
+
+      // -----------------------------------------------------
+      // 기존 시작 지형
+      // SKY / SEOUL 시작맵은 낮은 고도에서만 보이다 사라짐.
+      // -----------------------------------------------------
+
+      drawInfiniteOrigin(
+        climb
+      );
+
+
+      // -----------------------------------------------------
+      // 구름 역시 위로 갈수록 자연스럽게 사라짐
+      // -----------------------------------------------------
+
+      const cloudFade=
+        1-
+        smoothstep(
+          altitude/45
+        );
+
+      if(cloudFade>0.001){
+
+        drawWorldCloudBand(
+          -900,
+          1.18,
+          cloudFade*.20
+        );
+
+        drawWorldCloudBand(
+          -1370,
+          1.38,
+          cloudFade*.16
+        );
+
+        drawWorldCloudBand(
+          -1830,
+          1.08,
+          cloudFade*.12
+        );
+
+        drawClouds(
+          cloudFade*.18,
+          game.uiTime*2.2-
+          camera.y*.004
+        );
+      }
+
+
+      // -----------------------------------------------------
+      // 디버그용
+      // -----------------------------------------------------
+
+      canvas.setAttribute(
+        'data-infinite-background',
+        'continuous-atmosphere'
+      );
+
+      canvas.setAttribute(
+        'data-space-background-assets',
+        'disabled'
+      );
+
+      canvas.setAttribute(
+        'data-atmosphere-altitude',
+        altitude.toFixed(1)
+      );
+    }
+
     function drawMountainRange(baseY,color,offset,scale=1){ctx.save();ctx.translate(offset%160,0);ctx.fillStyle=color;for(let repeat=-2;repeat<4;repeat++){const x=repeat*158;ctx.beginPath();ctx.moveTo(x,baseY);ctx.lineTo(x+43,baseY-82*scale);ctx.lineTo(x+72,baseY-35*scale);ctx.lineTo(x+105,baseY-112*scale);ctx.lineTo(x+158,baseY);ctx.closePath();ctx.fill();}ctx.restore();}
     function drawBridge(y,color,offset=0){ctx.save();ctx.translate(offset%120,0);ctx.strokeStyle=color;ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-130,y);ctx.lineTo(520,y);ctx.stroke();ctx.lineWidth=2;for(let x=-100;x<500;x+=58){ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+29,y-34);ctx.lineTo(x+58,y);ctx.stroke();}ctx.restore();}
     function imageCoverSourceRect(image,destinationWidth,destinationHeight,sourceY=0,sourceHeight=image.naturalHeight,focusY=.5,focusX=.5){
@@ -2029,7 +2366,10 @@
     function updateAriaLabel(){let label='BOUNCER.';if(game.screen==='menu')label+=' Home. Draw one line to begin Infinite mode. World Tour, Skins, Achievements, Settings.';else if(game.screen==='skinSelect')label+=' Ball, trail, and Infinite map customization.';else if(game.screen==='achievements')label+=' Achievement progress.';else if(game.screen==='settings')label+=' Settings.';else if(game.screen==='worldSelect')label+=' World Tour city map.';else if(game.screen==='stageSelect')label+=` ${CITIES[game.currentCity].name} stage select.`;else if(game.screen==='playing')label+=` ${game.gameMode} playing. Score ${game.score}, combo ${game.combo}. Drag one line to rise.`;else if(game.screen==='stageClear')label+=` Stage clear with ${game.resultStars} stars.`;else label+=' Result screen.';canvas.setAttribute('aria-label',label);}
     function responsiveBackdropPalette(){
       if(game.gameMode==='stage'&&game.currentStage){const record=stageBackgroundImages.get(game.currentStage.background);if(record?.status==='ready')return[record.skyColor,record.skyColor];const definition=STAGE_IMAGE_BACKGROUNDS[game.currentStage.background];if(definition){const fallback=stageBackgroundFallback(definition);return[fallback[0],fallback[fallback.length-1]];}}
-      if(game.gameMode==='infinite'&&['playing','infiniteResult'].includes(game.screen)){const phase=getInfinitePhase(),top=['#86bfd3','#315b7b','#0e1a2e','#17162d','#181333'],bottom=['#4c798d','#172d48','#070e1c','#0d0c1d','#0c091d'],next=Math.min(phase.index+1,top.length-1);return[mixColor(top[phase.index],top[next],phase.blend),mixColor(bottom[phase.index],bottom[next],phase.blend)];}
+      if(game.gameMode==='infinite'&&['playing','infiniteResult'].includes(game.screen)){
+        const palette=infiniteAtmospherePalette(game.displayAltitude);
+        return[palette.top,palette.bottom];
+      }
       if(game.screen==='stageSelect'&&['seoul','newyork','tokyo'].includes(game.currentCity)){const theme=game.currentCity==='seoul'?'SEOUL_GENERAL_NIGHT':game.currentCity==='newyork'?'newyork10':'tokyo10',record=stageBackgroundImages.get(theme);if(record?.status==='ready')return[record.skyColor,record.skyColor];const definition=STAGE_IMAGE_BACKGROUNDS[theme];if(definition){const fallback=stageBackgroundFallback(definition);return[fallback[0],fallback[fallback.length-1]];}}
       return game.screen==='menu'?['#5B94D6','#FFFFFF']:['#202a33','#171b21'];
     }
