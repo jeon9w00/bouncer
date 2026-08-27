@@ -840,6 +840,376 @@
     }
 
 
+
+    // =========================================================================
+    // Runtime state
+    // =========================================================================
+
+    const metrics={
+      lines:0,
+      perfects:0,
+      shards:0,
+      boosts:0,
+      successfulBounces:0,
+      maxCombo:1,
+      totalStageShards:0,
+      stageStarCollected:false
+    };
+
+    const ball={
+      x:WORLD.width/2,
+      y:540,
+      previousX:WORLD.width/2,
+      previousY:540,
+      vx:22,
+      vy:-110,
+      radius:9,
+      wormholeCooldown:0
+    };
+
+    const camera={
+      y:0,
+      targetY:0
+    };
+
+    const worldState={
+      objects:[],
+      shards:[],
+      stageStar:null,
+      stageMeteors:[],
+      wormholes:[],
+      wormholePairs:new Map(),
+      segments:[],
+      generatedTopY:0,
+      objectSerial:0,
+      segmentSerial:0,
+      lastTemplateId:'',
+      environmentPhase:'sky',
+      environmentMisses:0,
+      finishY:null,
+      theme:'infinite'
+    };
+
+    const input={
+      state:'idle',
+      pointerId:null,
+      pointerType:null,
+      drawing:false,
+      start:null,
+      end:null,
+      startScreen:null,
+      endScreen:null,
+      lastRaw:null,
+      lastMoveAt:0,
+      captureLost:false,
+      hoverAction:null
+    };
+
+    const effects={
+      particles:[],
+      fragments:[],
+      trail:[],
+      texts:[],
+      shake:0,
+      trailClock:0,
+      banner:null,
+      achievementToast:null
+    };
+
+    const ui={
+      hitAreas:[]
+    };
+
+
+    function completedStageCount(
+      cityId,
+      state=progress
+    ){
+      const stages=
+        STAGES[cityId]||[];
+
+      const completed=
+        state.completed||{};
+
+      const stars=
+        state.stars||{};
+
+      return stages.reduce(
+        (total,stage)=>
+          total+
+          (
+            completed[stage.id] ||
+            Number(
+              stars[stage.id]
+            )>0
+              ?1
+              :0
+          ),
+        0
+      );
+    }
+
+
+    function achievementProgress(
+      definition,
+      state=progress,
+      bestScore=game.best
+    ){
+      if(definition.cityId){
+        return{
+          current:
+            completedStageCount(
+              definition.cityId,
+              state
+            ),
+          target:
+            definition.requiredStages
+        };
+      }
+
+      if(
+        definition.condition===
+        'worldStars'
+      ){
+        return{
+          current:
+            Object.values(
+              state.stars||{}
+            ).reduce(
+              (total,value)=>
+                total+
+                clamp(
+                  Number(value)||0,
+                  0,
+                  3
+                ),
+              0
+            ),
+          target:
+            definition.target
+        };
+      }
+
+      if(
+        definition.condition===
+        'bestScore'
+      ){
+        return{
+          current:
+            Math.max(
+              0,
+              Number(bestScore)||0
+            ),
+          target:
+            definition.target
+        };
+      }
+
+      return{
+        current:0,
+        target:1
+      };
+    }
+
+
+    function isAchievementUnlocked(
+      id,
+      state=progress
+    ){
+      const record=
+        state.achievements?.[id];
+
+      return(
+        record===true ||
+        Boolean(
+          record?.unlocked
+        )
+      );
+    }
+
+
+    function showAchievementToast(
+      definition
+    ){
+      effects.achievementToast={
+        definition,
+        life:3,
+        maxLife:3
+      };
+
+      audio.achievement();
+    }
+
+
+    function reconcileAchievements(
+      showNotifications=false
+    ){
+      let changed=false;
+
+      for(
+        const definition
+        of ACHIEVEMENTS
+      ){
+        const status=
+          achievementProgress(
+            definition
+          );
+
+        const complete=
+          status.current>=
+          status.target;
+
+        if(
+          !complete ||
+          isAchievementUnlocked(
+            definition.id
+          )
+        ){
+          continue;
+        }
+
+        progress.achievements[
+          definition.id
+        ]={
+          unlocked:true,
+          unlockedAt:Date.now()
+        };
+
+        changed=true;
+
+        if(
+          showNotifications &&
+          definition.notify
+        ){
+          showAchievementToast(
+            definition
+          );
+        }
+      }
+
+      if(changed){
+        saveProgress();
+      }
+
+      return changed;
+    }
+
+
+    function resetMetrics(){
+      metrics.lines=0;
+      metrics.perfects=0;
+      metrics.shards=0;
+      metrics.boosts=0;
+      metrics.successfulBounces=0;
+      metrics.maxCombo=1;
+      metrics.totalStageShards=0;
+      metrics.stageStarCollected=false;
+    }
+
+
+    function resetEffects(){
+      effects.particles.length=0;
+      effects.fragments.length=0;
+      effects.trail.length=0;
+      effects.texts.length=0;
+
+      effects.shake=0;
+      effects.trailClock=0;
+      effects.banner=null;
+      effects.achievementToast=null;
+    }
+
+
+    function resetRuntime(){
+      game.phase='playing';
+      game.score=0;
+      game.combo=1;
+      game.elapsed=0;
+      game.resultTime=0;
+      game.transitionTimer=0;
+
+      game.homeTransition=0;
+      game.homeTransitionDuration=
+        HOME_LAYOUT.transitionDuration;
+
+      game.homeLaunch=false;
+      game.activeLine=null;
+      game.lineDrawnThisRun=false;
+
+      game.tutorialAlpha=
+        game.hasEverDrawn
+          ?0
+          :1;
+
+      game.unlockedNotices=
+        new Set();
+
+      game.altitude=0;
+      game.displayAltitude=0;
+      game.highestCameraY=0;
+      game.totalClimbDistance=0;
+
+      game.infinitePhase='sky';
+      game.phaseAdvanceCooldown=0;
+      game.previewHideHud=false;
+
+      ball.x=
+        WORLD.width/2;
+
+      ball.y=540;
+
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
+
+      ball.vx=22;
+      ball.vy=-110;
+
+      ball.wormholeCooldown=0;
+
+      camera.y=0;
+      camera.targetY=0;
+
+      input.state='idle';
+      input.pointerId=null;
+      input.pointerType=null;
+      input.drawing=false;
+      input.start=null;
+      input.end=null;
+      input.startScreen=null;
+      input.endScreen=null;
+      input.lastRaw=null;
+      input.lastMoveAt=0;
+      input.captureLost=false;
+      input.hoverAction=null;
+
+      resetMetrics();
+      resetEffects();
+
+      worldState.objects.length=0;
+      worldState.shards.length=0;
+      worldState.stageStar=null;
+      worldState.stageMeteors.length=0;
+      worldState.wormholes.length=0;
+      worldState.wormholePairs.clear();
+      worldState.segments.length=0;
+
+      worldState.generatedTopY=0;
+      worldState.objectSerial=0;
+      worldState.segmentSerial=0;
+      worldState.lastTemplateId='';
+      worldState.environmentPhase='sky';
+      worldState.environmentMisses=0;
+      worldState.finishY=null;
+
+      canvas.removeAttribute(
+        'data-last-committed-line'
+      );
+    }
+
+
     function startFirstVisitTutorial(){
       tutorial.active=true;
       tutorial.firstVisit=true;
