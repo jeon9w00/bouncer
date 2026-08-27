@@ -911,7 +911,11 @@
 
       step:'idle',
 
+      // 파란벽 종료 → HOME 페이드
       fadeAlpha:0,
+
+      // 첫 설명 → 실제 플레이 전환 페이드
+      introFadeAlpha:0,
 
       frozen:false,
 
@@ -950,6 +954,7 @@
       tutorial.firstVisit=false;
       tutorial.step='idle';
       tutorial.fadeAlpha=0;
+      tutorial.introFadeAlpha=0;
       tutorial.frozen=false;
       tutorial.wall=null;
       tutorial.homeFocus=null;
@@ -1339,6 +1344,7 @@
       tutorial.firstVisit=true;
       tutorial.step='intro';
       tutorial.fadeAlpha=0;
+      tutorial.introFadeAlpha=0;
       tutorial.frozen=true;
       tutorial.wall=null;
       tutorial.homeFocus=null;
@@ -1387,45 +1393,61 @@
 
     function beginTutorialPlay(){
       tutorial.step='play';
+
+      /*
+        물리는 바로 시작.
+        첫 안내 화면만 빠르게 사라진다.
+      */
       tutorial.frozen=false;
+
       tutorial.fadeAlpha=0;
+      tutorial.introFadeAlpha=1;
+
       tutorial.wall=null;
 
       tutorial.startingBounces=
         metrics.successfulBounces;
 
       game.phase='playing';
+
       game.previewHideHud=true;
 
-      /*
-        화면 가운데에서 천천히 낙하.
-        사용자가 직접 아래에 선을 그어
-        처음으로 한 번 튕기면 다음 단계로 이동.
-      */
-      ball.x=WORLD.width/2;
+
+      ball.x=
+        WORLD.width/2;
+
       ball.y=430;
 
-      ball.previousX=ball.x;
-      ball.previousY=ball.y;
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
 
       ball.vx=10;
       ball.vy=45;
 
+
       camera.y=0;
       camera.targetY=0;
+
 
       worldState.objects.length=0;
       worldState.shards.length=0;
       worldState.segments.length=0;
-      worldState.generatedTopY=-99999;
+
+      worldState.generatedTopY=
+        -99999;
 
       game.activeLine=null;
+
 
       canvas.setAttribute(
         'data-tutorial',
         'play'
       );
     }
+
 
 
     function beginTutorialWallExplanation(){
@@ -1437,33 +1459,47 @@
       }
 
       tutorial.step='wallWhite';
+
       tutorial.frozen=true;
 
-      game.phase='tutorialPaused';
+      /*
+        게임 즉시 정지.
+      */
+      game.phase=
+        'tutorialPaused';
+
       game.previewHideHud=true;
+
       game.activeLine=null;
 
-      /*
-        실제 플레이 월드를 멈춘 시점 그대로 유지.
-        화면 위쪽에 demonstration wall만 별도로 그림.
-      */
+
       tutorial.wall={
         x:76,
         y:300,
         w:238,
-        h:16,
-        visualType:'wall'
+        h:18
       };
 
+
+      ball.vx=0;
+      ball.vy=0;
+
       abortDrawing();
+
 
       canvas.setAttribute(
         'data-tutorial',
         'wallWhite'
       );
 
+      canvas.setAttribute(
+        'data-tutorial-wall-type',
+        'wall'
+      );
+
       audio.ui();
     }
+
 
 
 
@@ -1547,54 +1583,75 @@
 
 
     function tutorialAdvance(){
-      if(!tutorial.active){
+      if(
+        !tutorial.active
+      ){
         return false;
       }
 
-      // INTRO → 실제 선 긋기
-      if(tutorial.step==='intro'){
+
+      // 첫 화면 → 실제 플레이
+      if(
+        tutorial.step==='intro'
+      ){
         beginTutorialPlay();
+
         audio.ui();
+
         return true;
       }
 
-      // WHITE → RED
-      if(tutorial.step==='wallWhite'){
-        tutorial.step='wallRed';
 
-        setTutorialWallType(
-          'deathwall'
-        );
+      // WHITE → RED
+      if(
+        tutorial.step==='wallWhite'
+      ){
+        tutorial.step='wallRed';
 
         canvas.setAttribute(
           'data-tutorial',
           'wallRed'
         );
 
+        canvas.setAttribute(
+          'data-tutorial-wall-type',
+          'deathwall'
+        );
+
         audio.ui();
+
         return true;
       }
 
-      // RED → BLUE
-      if(tutorial.step==='wallRed'){
-        tutorial.step='wallBlue';
 
-        setTutorialWallType(
-          'jumpwall'
-        );
+      // RED → BLUE
+      if(
+        tutorial.step==='wallRed'
+      ){
+        tutorial.step='wallBlue';
 
         canvas.setAttribute(
           'data-tutorial',
           'wallBlue'
         );
 
+        canvas.setAttribute(
+          'data-tutorial-wall-type',
+          'jumpwall'
+        );
+
         audio.ui();
+
         return true;
       }
 
-      // BLUE → HOME FADE
-      if(tutorial.step==='wallBlue'){
+
+      // BLUE → HOME
+      if(
+        tutorial.step==='wallBlue'
+      ){
         tutorial.step='fadeToHome';
+
         tutorial.fadeAlpha=0;
         tutorial.frozen=true;
 
@@ -1604,11 +1661,15 @@
         );
 
         audio.ui();
+
         return true;
       }
 
+
       // WORLD TOUR → SKINS
-      if(tutorial.step==='homeWorld'){
+      if(
+        tutorial.step==='homeWorld'
+      ){
         tutorial.step='homeSkins';
         tutorial.homeFocus='skin';
 
@@ -1618,13 +1679,20 @@
         );
 
         audio.ui();
+
         return true;
       }
 
+
       // SKINS → ACHIEVEMENTS
-      if(tutorial.step==='homeSkins'){
-        tutorial.step='homeAchievements';
-        tutorial.homeFocus='achievements';
+      if(
+        tutorial.step==='homeSkins'
+      ){
+        tutorial.step=
+          'homeAchievements';
+
+        tutorial.homeFocus=
+          'achievements';
 
         canvas.setAttribute(
           'data-tutorial',
@@ -1632,11 +1700,15 @@
         );
 
         audio.ui();
+
         return true;
       }
 
-      // COMPLETE
-      if(tutorial.step==='homeAchievements'){
+
+      if(
+        tutorial.step===
+        'homeAchievements'
+      ){
         tutorialSaveComplete();
 
         tutorial.step='done';
@@ -1651,8 +1723,10 @@
         return true;
       }
 
+
       return false;
     }
+
 
 
     function startInfinite(){
@@ -4692,32 +4766,42 @@
 
 
     function drawTutorialDemoWall(){
-      if(!tutorial.wall){
+      if(
+        !tutorial.wall
+      ){
         return;
       }
+
 
       const wall=
         tutorial.wall;
 
+
       let color='#FFFFFF';
+      let type='wall';
+
 
       if(
-        wall.visualType==='deathwall'
+        tutorial.step==='wallRed'
       ){
         color='#FF7964';
+        type='deathwall';
       }
 
       else if(
-        wall.visualType==='jumpwall'
+        tutorial.step==='wallBlue'
       ){
         color='#82C7FF';
+        type='jumpwall';
       }
+
 
       ctx.save();
 
+
       /*
-        외곽선 없음.
-        흰 / 빨강 / 파랑 단색.
+        회색 overlay보다 위에서
+        단색 벽을 확실하게 다시 그린다.
       */
       drawRoundedRect(
         wall.x,
@@ -4728,25 +4812,35 @@
         color
       );
 
+
       ctx.restore();
+
 
       canvas.setAttribute(
         'data-tutorial-wall-type',
-        wall.visualType||'wall'
+        type
       );
     }
 
 
+
     function drawTutorialOverlay(){
-      if(!tutorial.active){
+      if(
+        !tutorial.active
+      ){
         return;
       }
 
-      /*
-        첫 인사.
-      */
-      if(tutorial.step==='intro'){
+
+      // ======================================================
+      // FIRST SCREEN
+      // ======================================================
+
+      if(
+        tutorial.step==='intro'
+      ){
         ctx.save();
+
 
         ctx.fillStyle=
           'rgba(45,48,52,.74)';
@@ -4758,71 +4852,176 @@
           WORLD.height
         );
 
-        tutorialTextBlock(
-          '안녕하세요',
-          '지금부터 BOUNCER의\n간단한 튜토리얼을 시작할게요',
-          '화면을 터치해 시작'
-        );
-
-        ctx.restore();
-
-        return;
-      }
-
-
-      /*
-        첫 실제 조작.
-        회색막 없이 게임 화면 그대로.
-      */
-      if(tutorial.step==='play'){
-        ctx.save();
-
-        drawRoundedRect(
-          38,
-          WORLD.height-144,
-          WORLD.width-76,
-          66,
-          18,
-          'rgba(20,31,42,.30)'
-        );
 
         ctx.textAlign='center';
         ctx.textBaseline='middle';
 
+
         ctx.fillStyle='#FFFFFF';
 
         ctx.font=
-          '720 12px ui-sans-serif, sans-serif';
+          '780 20px ui-sans-serif, sans-serif';
 
         ctx.fillText(
-          '공 바로 아래에 선을 그어',
+          '안녕하세요',
           WORLD.width/2,
-          WORLD.height-118
+          290
+        );
+
+
+        ctx.font=
+          '700 14px ui-sans-serif, sans-serif';
+
+        ctx.fillText(
+          '지금부터 BOUNCER를',
+          WORLD.width/2,
+          332
         );
 
         ctx.fillText(
-          '떨어지는 공을 튕겨보세요',
+          '간단하게 배워볼게요',
           WORLD.width/2,
-          WORLD.height-99
+          354
         );
+
+
+        /*
+          처음 화면부터 바로 조작법 표시.
+          더 이상 게임 시작 후 늦게 등장하지 않는다.
+        */
+        ctx.fillStyle=
+          'rgba(255,255,255,.88)';
+
+        ctx.font=
+          '690 12px ui-sans-serif, sans-serif';
+
+        ctx.fillText(
+          '아래에서 스와이프해 선을 그리고',
+          WORLD.width/2,
+          414
+        );
+
+        ctx.fillText(
+          '떨어지는 원을 튕겨보세요',
+          WORLD.width/2,
+          435
+        );
+
+
+        ctx.fillStyle=
+          'rgba(255,255,255,.52)';
+
+        ctx.font=
+          '600 9px ui-sans-serif, sans-serif';
+
+        ctx.fillText(
+          '화면을 터치해 시작',
+          WORLD.width/2,
+          492
+        );
+
 
         ctx.restore();
 
         return;
       }
 
+
+      // ======================================================
+      // GAME START
+      //
+      // 게임은 이미 실행된 상태.
+      // 이전 설명 화면만 바로 fade-out.
+      // ======================================================
+
+      if(
+        tutorial.step==='play'
+      ){
+        if(
+          tutorial.introFadeAlpha>0
+        ){
+          ctx.save();
+
+          ctx.globalAlpha=
+            tutorial.introFadeAlpha;
+
+
+          ctx.fillStyle=
+            'rgba(45,48,52,.74)';
+
+          ctx.fillRect(
+            0,
+            0,
+            WORLD.width,
+            WORLD.height
+          );
+
+
+          ctx.textAlign='center';
+          ctx.textBaseline='middle';
+
+
+          ctx.fillStyle='#FFFFFF';
+
+          ctx.font=
+            '780 20px ui-sans-serif, sans-serif';
+
+          ctx.fillText(
+            '안녕하세요',
+            WORLD.width/2,
+            290
+          );
+
+
+          ctx.fillStyle=
+            'rgba(255,255,255,.88)';
+
+          ctx.font=
+            '690 12px ui-sans-serif, sans-serif';
+
+          ctx.fillText(
+            '아래에서 스와이프해 선을 그리고',
+            WORLD.width/2,
+            414
+          );
+
+          ctx.fillText(
+            '떨어지는 원을 튕겨보세요',
+            WORLD.width/2,
+            435
+          );
+
+
+          ctx.restore();
+        }
+
+        /*
+          별도의 새로운 안내 박스는 그리지 않는다.
+          시작 전에 이미 설명을 보여줬기 때문.
+        */
+
+        return;
+      }
+
+
+      // ======================================================
+      // WALL GUIDE
+      // ======================================================
 
       if(
         [
           'wallWhite',
           'wallRed',
           'wallBlue'
-        ].includes(tutorial.step)
+        ].includes(
+          tutorial.step
+        )
       ){
         ctx.save();
 
+
         /*
-          물리 정지 + 반투명 회색.
+          게임 정지 + 회색 반투명.
         */
         ctx.fillStyle=
           'rgba(43,47,52,.68)';
@@ -4834,11 +5033,16 @@
           WORLD.height
         );
 
+
+        /*
+          회색막을 그린 뒤 벽을 그리므로
+          벽 색이 정확히 보인다.
+        */
         drawTutorialDemoWall();
 
+
         if(
-          tutorial.step===
-          'wallWhite'
+          tutorial.step==='wallWhite'
         ){
           tutorialTextBlock(
             '흰색 벽',
@@ -4847,8 +5051,7 @@
         }
 
         else if(
-          tutorial.step===
-          'wallRed'
+          tutorial.step==='wallRed'
         ){
           tutorialTextBlock(
             '빨간색 벽',
@@ -4863,9 +5066,11 @@
           );
         }
 
+
         ctx.restore();
       }
     }
+
 
 
     function drawTutorialHomeSpotlight(){
@@ -5014,38 +5219,72 @@
 
     function updateTutorialFade(dt){
       if(
-        !tutorial.active ||
-        tutorial.step!==
-          'fadeToHome'
+        !tutorial.active
       ){
         return;
       }
+
+
+      /*
+        게임 시작과 동시에
+        첫 설명 화면 빠르게 fade out.
+      */
+      if(
+        tutorial.step==='play' &&
+        tutorial.introFadeAlpha>0
+      ){
+        tutorial.introFadeAlpha=
+          Math.max(
+            0,
+            tutorial.introFadeAlpha-
+            dt/0.22
+          );
+      }
+
+
+      /*
+        BLUE 설명 종료 후 HOME으로 fade.
+      */
+      if(
+        tutorial.step!==
+        'fadeToHome'
+      ){
+        return;
+      }
+
 
       tutorial.fadeAlpha=
         Math.min(
           1,
           tutorial.fadeAlpha+
-          dt*1.9
+          dt/0.55
         );
+
 
       if(
         tutorial.fadeAlpha>=1
       ){
-        /*
-          HOME 초기화 후에도 tutorial state가
-          사라지지 않게 순서가 중요함.
-        */
         prepareHomeIdle();
+
 
         tutorial.active=true;
         tutorial.firstVisit=true;
-        tutorial.step='homeWorld';
-        tutorial.homeFocus='worldTour';
+
+        tutorial.step=
+          'homeWorld';
+
+        tutorial.homeFocus=
+          'worldTour';
+
         tutorial.frozen=true;
+
         tutorial.fadeAlpha=0;
+        tutorial.introFadeAlpha=0;
+
 
         game.screen='menu';
         game.phase='homeIdle';
+
 
         canvas.setAttribute(
           'data-tutorial',
@@ -5053,6 +5292,7 @@
         );
       }
     }
+
 
 
     function drawTutorialFade(){
