@@ -778,6 +778,50 @@
     function skinColor(id){return SKIN_SWATCHES.find(swatch=>swatch.id===id)?.color||SKIN_SWATCHES[0].color;}
     function selectedInfiniteMap(){return isInfiniteMapUnlocked(appearance.infiniteMap)?appearance.infiniteMap:'city';}
     const game={ screen:'menu',phase:'homeIdle',gameMode:'infinite',currentCity:'seoul',currentStageIndex:0,currentStage:null,score:0,combo:1,best:loadBestScore(),elapsed:0,resultTime:0,transitionTimer:0,homeTransition:0,homeTransitionDuration:HOME_LAYOUT.transitionDuration,homeLaunch:false,skinTab:'balls',activeLine:null,lineSerial:0,tutorialAlpha:1,hasEverDrawn:false,lineDrawnThisRun:false,unlockedNotices:new Set(),resultStars:0,uiTime:0,menuEnteredAt:0,lastDeathReason:'FALL',selfTests:null,altitude:0,displayAltitude:0,highestCameraY:0,totalClimbDistance:0,infinitePhase:'sky',phaseAdvanceCooldown:0,previewHideHud:false };
+
+    const tutorial = {
+      active:false,
+      firstVisit:false,
+
+      // intro → play → wallWhite → wallRed → wallBlue
+      // → homeWorld → homeSkins → homeAchievements → done
+      step:'idle',
+
+      overlayAlpha:0,
+      fadeAlpha:0,
+
+      checkpoint:'start',
+
+      frozen:false,
+      wall:null,
+
+      homeFocus:null,
+
+      completed:
+        safeGet('bouncer_tutorial_completed','0') === '1'
+    };
+
+    function tutorialShouldStart(){
+      return !tutorial.completed;
+    }
+
+    function tutorialSaveComplete(){
+      tutorial.completed=true;
+      safeSet('bouncer_tutorial_completed','1');
+    }
+
+    function tutorialResetRuntime(){
+      tutorial.active=false;
+      tutorial.firstVisit=false;
+      tutorial.step='idle';
+      tutorial.overlayAlpha=0;
+      tutorial.fadeAlpha=0;
+      tutorial.checkpoint='start';
+      tutorial.frozen=false;
+      tutorial.wall=null;
+      tutorial.homeFocus=null;
+    }
+
     const metrics={lines:0,perfects:0,shards:0,boosts:0,successfulBounces:0,maxCombo:1,totalStageShards:0,stageStarCollected:false};
     const ball={x:WORLD.width/2,y:540,previousX:WORLD.width/2,previousY:540,vx:22,vy:-110,radius:9,wormholeCooldown:0};
     const camera={y:0,targetY:0};
@@ -800,6 +844,74 @@
       camera.y=0;camera.targetY=0;input.state='idle';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;input.hoverAction=null;resetMetrics();resetEffects();
       worldState.objects.length=0;worldState.shards.length=0;worldState.stageStar=null;worldState.stageMeteors.length=0;worldState.wormholes.length=0;worldState.wormholePairs.clear();worldState.segments.length=0;worldState.generatedTopY=0;worldState.objectSerial=0;worldState.segmentSerial=0;worldState.lastTemplateId='';worldState.environmentPhase='sky';worldState.environmentMisses=0;worldState.finishY=null;canvas.removeAttribute('data-last-committed-line');
     }
+
+    function startFirstVisitTutorial(){
+      tutorial.active=true;
+      tutorial.firstVisit=true;
+      tutorial.step='intro';
+      tutorial.overlayAlpha=1;
+      tutorial.fadeAlpha=0;
+      tutorial.checkpoint='start';
+      tutorial.frozen=true;
+      tutorial.wall=null;
+      tutorial.homeFocus=null;
+
+      game.gameMode='infinite';
+      game.currentStage=null;
+
+      resetRuntime();
+
+      game.screen='playing';
+      game.phase='tutorialPaused';
+      game.previewHideHud=true;
+
+      // HOME과 동일한 기본 하늘
+      worldState.theme='infinite:city';
+
+      // 처음에는 장애물 없는 공간
+      worldState.objects.length=0;
+      worldState.shards.length=0;
+      worldState.segments.length=0;
+      worldState.generatedTopY=-1400;
+
+      ball.x=WORLD.width/2;
+      ball.y=540;
+      ball.previousX=ball.x;
+      ball.previousY=ball.y;
+      ball.vx=0;
+      ball.vy=0;
+
+      camera.y=0;
+      camera.targetY=0;
+
+      canvas.setAttribute('data-tutorial','intro');
+    }
+
+    function beginTutorialPlay(){
+      tutorial.step='play';
+      tutorial.frozen=false;
+      tutorial.overlayAlpha=0;
+      tutorial.checkpoint='play';
+
+      game.phase='playing';
+      game.previewHideHud=true;
+
+      ball.x=WORLD.width/2;
+      ball.y=520;
+      ball.previousX=ball.x;
+      ball.previousY=ball.y;
+      ball.vx=18;
+      ball.vy=-60;
+
+      worldState.objects.length=0;
+      worldState.shards.length=0;
+      worldState.segments.length=0;
+
+      createTutorialWall();
+
+      canvas.setAttribute('data-tutorial','play');
+    }
+
     function startInfinite(){ audio.ui();game.gameMode='infinite';game.currentStage=null;game.screen='playing';resetRuntime();ball.vx=Math.random()<.5?-22:22;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld(); }
     function prepareHomeIdle(){game.gameMode='infinite';game.currentStage=null;resetRuntime();game.screen='menu';game.phase='homeIdle';game.menuEnteredAt=game.uiTime;ball.x=WORLD.width/2;ball.y=HOME_LAYOUT.logoY;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld();canvas.setAttribute('data-home-state','HOME_IDLE');}
     function launchInfiniteFromHome(){game.screen='playing';game.phase='homeStarting';game.homeLaunch=true;game.homeTransition=HOME_LAYOUT.transitionDuration;game.homeTransitionDuration=HOME_LAYOUT.transitionDuration;game.tutorialAlpha=0;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;canvas.setAttribute('data-home-state','STARTING');audio.ui();}
@@ -845,11 +957,129 @@
       if(action.startsWith('city:')){const cityId=action.split(':')[1];if((progress.unlocked[cityId]||0)>0&&STAGES[cityId].length){audio.ui();game.currentCity=cityId;game.screen='stageSelect';}return;}
       if(action.startsWith('stage:')){const[,cityId,raw]=action.split(':');const index=Number(raw);if(index<(progress.unlocked[cityId]||0))startStage(cityId,index);}
     }
+
+    function tutorialAdvance(){
+      if(!tutorial.active)return false;
+
+      if(tutorial.step==='intro'){
+        beginTutorialPlay();
+        return true;
+      }
+
+      if(tutorial.step==='wallWhite'){
+        tutorial.step='wallRed';
+        tutorial.checkpoint='wallRed';
+        setTutorialWallType('deathwall');
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'wallRed'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='wallRed'){
+        tutorial.step='wallBlue';
+        tutorial.checkpoint='wallBlue';
+        setTutorialWallType('jumpwall');
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'wallBlue'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='wallBlue'){
+        tutorial.step='fadeToHome';
+        tutorial.fadeAlpha=0;
+        tutorial.frozen=true;
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'fadeToHome'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeWorld'){
+        tutorial.step='homeSkins';
+        tutorial.homeFocus='skin';
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeSkins'){
+        tutorial.step='homeAchievements';
+        tutorial.homeFocus='achievements';
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeAchievements'){
+        tutorial.step='done';
+        tutorial.homeFocus=null;
+        tutorialSaveComplete();
+
+        setTimeout(()=>{
+          tutorialResetRuntime();
+        },0);
+
+        audio.ui();
+        return true;
+      }
+
+      return false;
+    }
+
     function clearDrawingState(){input.state='idle';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;}
     function releasePointerCapture(pointerId){if(pointerId===null||pointerId===undefined)return;try{if(!canvas.hasPointerCapture||canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId);}catch(error){}}
     function abortDrawing(pointerId=input.pointerId){const capturedId=pointerId;clearDrawingState();releasePointerCapture(capturedId);}
-    function canDrawLineNow(){return(game.screen==='playing'&&game.phase==='playing')||(game.screen==='menu'&&game.phase==='homeIdle');}
-    function beginPointer(event){if(event.isPrimary===false||(event.pointerType==='mouse'&&event.button!==0))return;event.preventDefault();audio.unlock();const point=pointerToScreen(event),hit=findHitArea(point);if(hit){input.hoverAction=hit.action;handleAction(hit.action);return;}if(!canDrawLineNow()||input.state!=='idle'||input.pointerId!==null)return;input.state='drawing';input.pointerId=event.pointerId;input.pointerType=event.pointerType||'mouse';input.drawing=true;input.startScreen={...point};input.endScreen={...point};input.lastRaw={...point};input.lastMoveAt=game.uiTime;syncDrawingWorldPoints();input.captureLost=false;try{canvas.setPointerCapture(event.pointerId);}catch(error){input.captureLost=true;}}
+    function canDrawLineNow(){
+      if(
+        tutorial.active &&
+        tutorial.step!=='play'
+      ) return false;
+
+      return(
+        (
+          game.screen==='playing' &&
+          game.phase==='playing'
+        ) ||
+        (
+          game.screen==='menu' &&
+          game.phase==='homeIdle'
+        )
+      );
+    }
+    function beginPointer(event){
+      if(event.isPrimary===false||(event.pointerType==='mouse'&&event.button!==0))return;
+      event.preventDefault();
+      audio.unlock();
+
+      if(
+        tutorial.active &&
+        [
+          'intro',
+          'wallWhite',
+          'wallRed',
+          'wallBlue',
+          'homeWorld',
+          'homeSkins',
+          'homeAchievements'
+        ].includes(tutorial.step)
+      ){
+        tutorialAdvance();
+        return;
+      }
+
+      const point=pointerToScreen(event),hit=findHitArea(point);if(hit){input.hoverAction=hit.action;handleAction(hit.action);return;}if(!canDrawLineNow()||input.state!=='idle'||input.pointerId!==null)return;input.state='drawing';input.pointerId=event.pointerId;input.pointerType=event.pointerType||'mouse';input.drawing=true;input.startScreen={...point};input.endScreen={...point};input.lastRaw={...point};input.lastMoveAt=game.uiTime;syncDrawingWorldPoints();input.captureLost=false;try{canvas.setPointerCapture(event.pointerId);}catch(error){input.captureLost=true;}}
     function movePointer(event){if(input.state!=='drawing'||event.pointerId!==input.pointerId){if(!input.drawing&&event.target===canvas)input.hoverAction=findHitArea(pointerToScreen(event))?.action||null;return;}event.preventDefault();updateDrawingEndpoint(event);}
     function commitCurrentDrawing(){
       if(input.state!=='drawing'||!input.start||!input.end)return false;syncDrawingWorldPoints();const fromHome=game.screen==='menu'&&game.phase==='homeIdle',start={...input.start},end={...input.end},length=Math.hypot(end.x-start.x,end.y-start.y),capturedId=input.pointerId;input.state='committing';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;
@@ -1085,8 +1315,45 @@
         topY;
     }
 
+
+    function createTutorialWall(){
+      // 화면 위쪽으로 플레이해서 도달하는 하나의 설명용 벽.
+      const object=createWorldObject({
+        type:'wall',
+        x:72,
+        y:-170,
+        w:246,
+        h:18
+      },null,true);
+
+      object.tutorialWall=true;
+      object.tutorialVisualType='wall';
+
+      tutorial.wall=object;
+
+      return object;
+    }
+
+    function tutorialWallType(){
+      return tutorial.wall?.tutorialVisualType || 'wall';
+    }
+
+    function setTutorialWallType(type){
+      if(!tutorial.wall)return;
+
+      tutorial.wall.tutorialVisualType=type;
+
+      // 실제 충돌은 튜토리얼 설명 동안 정지되어 있으므로
+      // object.type 자체를 바꿀 필요가 없음.
+      canvas.setAttribute(
+        'data-tutorial-wall',
+        type
+      );
+    }
+
     function setupInfiniteWorld(){instantiateInfiniteSegment(VALID_INFINITE_TEMPLATES.find(item=>item.id==='open'),700,700);ensureInfiniteSegments();}
     function ensureInfiniteSegments(){
+      if(tutorial.active)return;
       if(game.gameMode!=='infinite')return;const limit=camera.y-WORLD.height*CAMERA_RULES.generationAhead,phase=getInfinitePhase();while(worldState.generatedTopY>limit)instantiateInfiniteSegment(pickInfiniteTemplate(game.score,game.altitude,phase),worldState.generatedTopY);
       const cleanup=camera.y+WORLD.height*CAMERA_RULES.cleanupBehind,removed=new Set(worldState.segments.filter(segment=>segment.topY>cleanup).map(segment=>segment.id));if(removed.size){worldState.segments=worldState.segments.filter(s=>!removed.has(s.id));worldState.objects=worldState.objects.filter(o=>!removed.has(o.segmentId));worldState.shards=worldState.shards.filter(s=>!removed.has(s.segmentId));}
     }
@@ -1736,15 +2003,65 @@
       if(unlockLabels.length)showBanner(`${unlockLabels.join(' · ')} UNLOCKED`,COLORS.finish);
       reconcileAchievements(true);saveProgress();
     }
-    function endRun(reason='FALL',x=ball.x,y=ball.y){if(game.phase!=='playing')return;game.phase='dying';game.transitionTimer=.3;game.lastDeathReason=reason;game.activeLine=null;abortDrawing();addShake(5.2);spawnBurst(clamp(x,16,WORLD.width-16),y,20,isDeadlyReason(reason)?COLORS.danger:COLORS.softWhite,235,.5);audio.death();if(game.gameMode==='infinite'&&game.score>game.best){game.best=game.score;safeSet('bounce_best',String(game.best));reconcileAchievements(false);}}
+    function endRun(reason='FALL',x=ball.x,y=ball.y){
+      if(
+        tutorial.active &&
+        tutorial.step==='play'
+      ){
+        // 실제 튜토리얼 플레이 구간에서 떨어지면
+        // 처음 선 긋기 구간으로 즉시 복귀.
+        beginTutorialPlay();
+        return;
+      }
+
+      if(game.phase!=='playing')return;game.phase='dying';game.transitionTimer=.3;game.lastDeathReason=reason;game.activeLine=null;abortDrawing();addShake(5.2);spawnBurst(clamp(x,16,WORLD.width-16),y,20,isDeadlyReason(reason)?COLORS.danger:COLORS.softWhite,235,.5);audio.death();if(game.gameMode==='infinite'&&game.score>game.best){game.best=game.score;safeSet('bounce_best',String(game.best));reconcileAchievements(false);}}
     function openDeathResult(){game.phase='over';game.resultTime=0;game.screen=game.gameMode==='infinite'?'infiniteResult':'stageFailed';}
     function updatePhysics(dt){
       const homeStarting=game.phase==='homeStarting';if(game.phase!=='playing'&&game.phase!=='finishing'&&!homeStarting)return;const scale=game.phase==='finishing'?.18:1,step=dt*scale;game.elapsed+=step;if(!homeStarting)updateWorldObjects(step);ball.wormholeCooldown=Math.max(0,ball.wormholeCooldown-step);ball.previousX=ball.x;ball.previousY=ball.y;const homeProgress=homeStarting?1-game.homeTransition/Math.max(.001,game.homeTransitionDuration):1,homeGravity=homeStarting?lerp(.16,1,smoothstep(homeProgress)):1,grace=!game.lineDrawnThisRun&&game.elapsed<2.8?.3:1;ball.vy=Math.min(PHYSICS.maxFallSpeed,ball.vy+PHYSICS.gravity*grace*homeGravity*step);ball.x+=ball.vx*step;ball.y+=ball.vy*step;
       if(ball.x-ball.radius<0){ball.x=ball.radius;ball.vx=Math.abs(ball.vx)*PHYSICS.sideWallRestitution;}else if(ball.x+ball.radius>WORLD.width){ball.x=WORLD.width-ball.radius;ball.vx=-Math.abs(ball.vx)*PHYSICS.sideWallRestitution;}
       if(game.phase==='playing'||homeStarting){const teleported=homeStarting?false:checkWormholeCollisions(),structureHit=homeStarting||teleported?false:checkStructureCollisions();if(game.phase!=='playing'&&!homeStarting)return;if(!teleported&&!structureHit&&game.activeLine){const line=game.activeLine,hit=sweptBallLineCollision({x:ball.previousX,y:ball.previousY},{x:ball.x,y:ball.y},ball.radius,line);if(hit)handleLineCollision(hit,line);}if(!homeStarting){if(game.gameMode==='infinite')updateShardCollisions();else updateStageStarCollision();checkStageFinish();}}
-      if(!homeStarting){updateCamera(step);updateInfiniteAltitude(step);ensureInfiniteSegments();}effects.trailClock+=step;if(effects.trailClock>=1/60){effects.trailClock%=1/60;effects.trail.push({x:ball.x,y:ball.y,vy:ball.vy,life:.16,maxLife:.16});if(effects.trail.length>14)effects.trail.shift();}
+      if(!homeStarting){updateCamera(step);updateInfiniteAltitude(step);updateTutorialCheckpoint();if(!tutorial.active)ensureInfiniteSegments();}effects.trailClock+=step;if(effects.trailClock>=1/60){effects.trailClock%=1/60;effects.trail.push({x:ball.x,y:ball.y,vy:ball.vy,life:.16,maxLife:.16});if(effects.trail.length>14)effects.trail.shift();}
       if(game.phase==='playing'&&ball.y-camera.y-ball.radius>WORLD.height)endRun('FALL',ball.x,camera.y+WORLD.height-8);
     }
+
+    function updateTutorialCheckpoint(){
+      if(
+        !tutorial.active ||
+        tutorial.step!=='play' ||
+        !tutorial.wall
+      ) return;
+
+      const wallScreenY =
+        worldToScreenY(
+          tutorial.wall.y
+        );
+
+      // 벽이 화면 중앙 근처까지 내려오면
+      // 플레이를 완전히 정지하고 설명 시작.
+      if(wallScreenY > 210){
+        return;
+      }
+
+      tutorial.step='wallWhite';
+      tutorial.checkpoint='wallWhite';
+      tutorial.frozen=true;
+
+      game.phase='tutorialPaused';
+
+      ball.vx=0;
+      ball.vy=0;
+
+      tutorial.overlayAlpha=1;
+      setTutorialWallType('wall');
+
+      abortDrawing();
+
+      canvas.setAttribute(
+        'data-tutorial',
+        'wallWhite'
+      );
+    }
+
     function updateTransitions(dt){if(game.phase==='homeStarting'){game.homeTransition=Math.max(0,game.homeTransition-dt);if(game.homeTransition<=0){game.phase='playing';ball.previousX=ball.x;ball.previousY=ball.y;canvas.setAttribute('data-home-state','RUNNING');}}else if(game.phase==='dying'){game.transitionTimer-=dt;if(game.transitionTimer<=0)openDeathResult();}else if(game.phase==='finishing'){game.transitionTimer-=dt;if(game.transitionTimer<=0)completeStage();}if(['infiniteResult','stageFailed','stageClear'].includes(game.screen))game.resultTime+=dt;}
 
     // =========================================================================
@@ -3336,7 +3653,19 @@
     }
 
 
-    function drawStructures(){canvas.setAttribute('data-wall-visual','single-color-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
+    function drawStructures(){canvas.setAttribute('data-wall-visual','single-color-lines-and-solid-blocks');for(const object of worldState.objects)drawMovementGuide(object);for(const object of worldState.objects){const sy=worldToScreenY(object.y);if(object.type==='meteor'&&sy>-170&&sy<-42)drawMeteorWarning(object,sy);if(sy+object.h<-70||sy>WORLD.height+70)continue;if(object.tutorialWall){
+        const visualType=object.tutorialVisualType||'wall';
+
+        if(visualType==='deathwall')
+          drawDeathWall(object,sy);
+
+        else if(visualType==='jumpwall')
+          drawBoost(object,sy);
+
+        else
+          drawWall(object,sy);
+
+      }else if(object.type==='wall')drawWall(object,sy);else if(object.type==='deathwall')drawDeathWall(object,sy);else if(object.type==='hazard')drawHazard(object,sy);else if(object.type==='boost'||object.type==='jumpwall')drawBoost(object,sy);else if(object.type==='satellite')drawSatellite(object,sy);else if(object.type==='meteor')drawMeteor(object,sy);else if(object.type==='asteroid')drawAsteroid(object,sy);}for(const wormhole of worldState.wormholes)drawWormhole(wormhole);}
     function shardDiamondPath(radius){ctx.beginPath();ctx.moveTo(0,-radius);ctx.lineTo(radius*.72,0);ctx.lineTo(0,radius);ctx.lineTo(-radius*.72,0);ctx.closePath();}
     function drawShards(){
 
@@ -3495,10 +3824,320 @@
     function drawParticles(){for(const p of effects.particles){const sy=worldToScreenY(p.y),alpha=clamp(p.life/p.maxLife,0,1);ctx.save();ctx.globalAlpha=alpha;ctx.fillStyle=p.color;ctx.translate(p.x,sy);ctx.rotate(p.rotation);if(p.shape==='diamond'){ctx.beginPath();ctx.moveTo(0,-p.size);ctx.lineTo(p.size,0);ctx.lineTo(0,p.size);ctx.lineTo(-p.size,0);ctx.closePath();ctx.fill();}else{ctx.beginPath();ctx.arc(0,0,p.size,0,Math.PI*2);ctx.fill();}ctx.restore();}}
     function drawFragments(){for(const f of effects.fragments){ctx.save();ctx.globalAlpha=clamp(f.life/f.maxLife,0,1);ctx.translate(f.x,worldToScreenY(f.y));ctx.rotate(f.angle);ctx.strokeStyle=f.color;ctx.lineWidth=3.3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(-f.length/2,0);ctx.lineTo(f.length/2,0);ctx.stroke();ctx.restore();}}
     function drawFloatingTexts(){ctx.textAlign='center';ctx.textBaseline='middle';for(const t of effects.texts){const fadeIn=clamp((t.maxLife-t.life)/.08,0,1),fadeOut=clamp(t.life/.22,0,1);ctx.globalAlpha=fadeIn*fadeOut;ctx.fillStyle=t.color;ctx.font=`700 ${t.size}px ui-sans-serif, sans-serif`;ctx.fillText(t.text,t.x,t.screenSpace?t.y:worldToScreenY(t.y));}ctx.globalAlpha=1;}
-    function drawTutorial(){if(game.tutorialAlpha<=0||game.phase!=='playing')return;const alpha=game.elapsed<.18?game.elapsed/.18:1;ctx.globalAlpha=game.tutorialAlpha*alpha;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.white;ctx.font='700 15px ui-sans-serif, sans-serif';ctx.fillText('DRAG A LINE',WORLD.width/2,420);ctx.fillStyle=COLORS.muted;ctx.font='600 11px ui-sans-serif, sans-serif';ctx.fillText('KEEP RISING',WORLD.width/2,445);ctx.globalAlpha=1;}
+
+    function tutorialTextBlock(
+      title,
+      body,
+      foot='화면을 터치해 계속'
+    ){
+      const centerY=158;
+
+      ctx.save();
+
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+
+      ctx.fillStyle='#FFFFFF';
+      ctx.font='780 18px ui-sans-serif, sans-serif';
+      ctx.fillText(
+        title,
+        WORLD.width/2,
+        centerY
+      );
+
+      ctx.fillStyle='rgba(255,255,255,.82)';
+      ctx.font='620 11px ui-sans-serif, sans-serif';
+
+      const lines=body.split('\n');
+
+      lines.forEach(
+        (line,index)=>{
+          ctx.fillText(
+            line,
+            WORLD.width/2,
+            centerY+31+index*18
+          );
+        }
+      );
+
+      ctx.fillStyle='rgba(255,255,255,.48)';
+      ctx.font='600 9px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        foot,
+        WORLD.width/2,
+        WORLD.height-72
+      );
+
+      ctx.restore();
+    }
+
+    function drawTutorialOverlay(){
+      if(!tutorial.active)return;
+
+      if(tutorial.step==='intro'){
+        ctx.save();
+
+        ctx.fillStyle='rgba(38,42,47,.74)';
+        ctx.fillRect(
+          0,
+          0,
+          WORLD.width,
+          WORLD.height
+        );
+
+        tutorialTextBlock(
+          '안녕하세요',
+          '지금부터 BOUNCER의\n간단한 튜토리얼을 시작할게요',
+          '화면을 터치해 시작'
+        );
+
+        ctx.restore();
+        return;
+      }
+
+      if(tutorial.step==='play'){
+        ctx.save();
+
+        ctx.textAlign='center';
+        ctx.textBaseline='middle';
+
+        ctx.fillStyle='rgba(18,27,36,.30)';
+        drawRoundedRect(
+          42,
+          WORLD.height-151,
+          WORLD.width-84,
+          78,
+          18,
+          'rgba(14,24,34,.28)'
+        );
+
+        ctx.fillStyle='#FFFFFF';
+        ctx.font='720 13px ui-sans-serif, sans-serif';
+
+        ctx.fillText(
+          '공 아래에 선을 그어',
+          WORLD.width/2,
+          WORLD.height-123
+        );
+
+        ctx.fillText(
+          '떨어지는 공을 튕겨보세요',
+          WORLD.width/2,
+          WORLD.height-103
+        );
+
+        ctx.restore();
+        return;
+      }
+
+      if(
+        tutorial.step==='wallWhite' ||
+        tutorial.step==='wallRed' ||
+        tutorial.step==='wallBlue'
+      ){
+        // 월드 화면은 보이되 어둡게.
+        ctx.save();
+
+        ctx.fillStyle='rgba(20,25,30,.43)';
+        ctx.fillRect(
+          0,
+          0,
+          WORLD.width,
+          WORLD.height
+        );
+
+        if(tutorial.step==='wallWhite'){
+          tutorialTextBlock(
+            '흰색 벽',
+            '일반 벽입니다.\n공이 닿으면 튕겨 나갑니다.'
+          );
+        }
+
+        else if(tutorial.step==='wallRed'){
+          tutorialTextBlock(
+            '빨간색 벽',
+            '위험한 벽입니다.\n공이 닿으면 즉시 GAME OVER 됩니다.'
+          );
+        }
+
+        else{
+          tutorialTextBlock(
+            '파란색 벽',
+            '점프 벽입니다.\n위나 아래 어디에 닿아도 강하게 튕겨 나갑니다.'
+          );
+        }
+
+        ctx.restore();
+      }
+    }
+
+    function drawTutorialHomeSpotlight(){
+      if(!tutorial.active)return;
+
+      if(
+        ![
+          'homeWorld',
+          'homeSkins',
+          'homeAchievements'
+        ].includes(tutorial.step)
+      ) return;
+
+      const navY=homeNavigationY();
+
+      let cx=70;
+      let title='WORLD TOUR';
+      let body='도시별 스테이지를\n하나씩 클리어하는 모드입니다.';
+
+      if(tutorial.step==='homeSkins'){
+        cx=195;
+        title='SKINS';
+        body='공 색상과 트레일,\n무한 모드 시작 맵을 바꿀 수 있습니다.';
+      }
+
+      if(tutorial.step==='homeAchievements'){
+        cx=320;
+        title='ACHIEVEMENTS';
+        body='도시 클리어와 기록 달성으로\n특별한 배지를 얻을 수 있습니다.';
+      }
+
+      ctx.save();
+
+      // 어두운 반투명 커버
+      ctx.fillStyle='rgba(27,31,37,.68)';
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      // spotlight
+      ctx.globalCompositeOperation='destination-out';
+
+      ctx.beginPath();
+      ctx.arc(
+        cx,
+        navY-8,
+        47,
+        0,
+        Math.PI*2
+      );
+      ctx.fill();
+
+      ctx.globalCompositeOperation='source-over';
+
+      // 원 테두리
+      ctx.strokeStyle='rgba(255,255,255,.92)';
+      ctx.lineWidth=2;
+
+      ctx.beginPath();
+      ctx.arc(
+        cx,
+        navY-8,
+        48,
+        0,
+        Math.PI*2
+      );
+      ctx.stroke();
+
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+
+      ctx.fillStyle='#FFFFFF';
+      ctx.font='760 16px ui-sans-serif, sans-serif';
+      ctx.fillText(
+        title,
+        WORLD.width/2,
+        315
+      );
+
+      ctx.fillStyle='rgba(255,255,255,.82)';
+      ctx.font='620 11px ui-sans-serif, sans-serif';
+
+      body.split('\n').forEach(
+        (line,index)=>{
+          ctx.fillText(
+            line,
+            WORLD.width/2,
+            346+index*18
+          );
+        }
+      );
+
+      ctx.fillStyle='rgba(255,255,255,.5)';
+      ctx.font='600 9px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        tutorial.step==='homeAchievements'
+          ? '터치하여 튜토리얼 완료'
+          : '화면을 터치해 계속',
+        WORLD.width/2,
+        405
+      );
+
+      ctx.restore();
+    }
+
+    function updateTutorialFade(dt){
+      if(
+        !tutorial.active ||
+        tutorial.step!=='fadeToHome'
+      ) return;
+
+      tutorial.fadeAlpha=
+        Math.min(
+          1,
+          tutorial.fadeAlpha+
+          dt*1.75
+        );
+
+      if(tutorial.fadeAlpha>=1){
+        prepareHomeIdle();
+
+        tutorial.step='homeWorld';
+        tutorial.homeFocus='worldTour';
+        tutorial.frozen=true;
+
+        game.screen='menu';
+        game.phase='homeIdle';
+
+        tutorial.fadeAlpha=0;
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'homeWorld'
+        );
+      }
+    }
+
+    function drawTutorialFade(){
+      if(
+        !tutorial.active ||
+        tutorial.step!=='fadeToHome'
+      ) return;
+
+      ctx.save();
+
+      ctx.fillStyle=
+        `rgba(20,24,29,${tutorial.fadeAlpha})`;
+
+      ctx.fillRect(
+        0,
+        0,
+        WORLD.width,
+        WORLD.height
+      );
+
+      ctx.restore();
+    }
+
+    function drawTutorial(){
+      if(tutorial.active)return;
+      if(game.tutorialAlpha<=0||game.phase!=='playing')return;const alpha=game.elapsed<.18?game.elapsed/.18:1;ctx.globalAlpha=game.tutorialAlpha*alpha;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.white;ctx.font='700 15px ui-sans-serif, sans-serif';ctx.fillText('DRAG A LINE',WORLD.width/2,420);ctx.fillStyle=COLORS.muted;ctx.font='600 11px ui-sans-serif, sans-serif';ctx.fillText('KEEP RISING',WORLD.width/2,445);ctx.globalAlpha=1;}
     function drawBanner(){if(!effects.banner)return;const b=effects.banner,alpha=Math.min(1,(b.maxLife-b.life)/.12,b.life/.25);ctx.globalAlpha=alpha;ctx.fillStyle=b.color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='750 13px ui-sans-serif, sans-serif';ctx.fillText(b.text,WORLD.width/2,104);ctx.globalAlpha=1;}
     function drawHud(){ctx.save();ctx.textBaseline='top';ctx.shadowColor='rgba(7,12,17,.48)';ctx.shadowBlur=3;ctx.shadowOffsetY=1;if(game.gameMode==='stage'){ctx.fillStyle='rgba(247,248,250,.8)';ctx.font='650 9px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText('LINES',24,22);ctx.textAlign='right';ctx.fillText('MAP STAR',WORLD.width-24,22);ctx.fillStyle=COLORS.white;ctx.font='720 19px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText(String(metrics.lines),24,38);ctx.textAlign='right';ctx.fillStyle=game.currentStage?.id==='SEOUL_01'?COLORS.finish:metrics.stageStarCollected?COLORS.finish:COLORS.white;ctx.fillText(game.currentStage?.id==='SEOUL_01'?'★ AUTO':metrics.stageStarCollected?'★ 1/1':'☆ 0/1',WORLD.width-24,38);ctx.textAlign='center';ctx.fillStyle='rgba(247,248,250,.94)';ctx.font='720 10px ui-sans-serif, sans-serif';ctx.fillText(game.currentStage.id.replace('_',' '),WORLD.width/2,28);ctx.restore();return;}ctx.fillStyle='rgba(247,248,250,.8)';ctx.font='650 9px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText('SCORE',24,22);ctx.textAlign='right';ctx.fillText('COMBO',WORLD.width-24,22);ctx.fillStyle=COLORS.white;ctx.font='720 22px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText(String(game.score),24,37);ctx.fillStyle=game.combo>1?COLORS.accent:COLORS.white;ctx.textAlign='right';ctx.fillText(`×${game.combo}`,WORLD.width-24,37);ctx.fillStyle='rgba(247,248,250,.94)';ctx.font='720 10px ui-sans-serif, sans-serif';ctx.textAlign='center';ctx.fillText(INFINITE_PHASES[phaseIndexForId(game.infinitePhase)].label,WORLD.width/2,23);ctx.fillStyle='rgba(247,248,250,.7)';ctx.font='650 8px ui-sans-serif, sans-serif';ctx.fillText(formatAltitude(game.displayAltitude),WORLD.width/2,39);ctx.restore();}
-    function drawWorldScene(){if(input.drawing)syncDrawingWorldPoints();const movingObjects=worldState.objects.filter(object=>object.movement),activeStageMeteors=worldState.objects.filter(object=>object.stageMeteor),warningMeteors=worldState.stageMeteors.filter(schedule=>schedule.state==='warning');canvas.setAttribute('data-game-mode',game.gameMode||'');canvas.setAttribute('data-infinite-phase',game.gameMode==='infinite'?game.infinitePhase:'');canvas.setAttribute('data-world-object-types',[...new Set(worldState.objects.map(object=>object.type))].sort().join(','));canvas.setAttribute('data-moving-object-count',String(movingObjects.length));canvas.setAttribute('data-moving-sample',movingObjects.length?`${movingObjects[0].x.toFixed(2)},${movingObjects[0].y.toFixed(2)}`:'');canvas.setAttribute('data-wormhole-count',String(worldState.wormholes.length));canvas.setAttribute('data-wormhole-pairs',String(worldState.wormholePairs.size));canvas.setAttribute('data-stage-meteor-schedules',String(worldState.stageMeteors.length));canvas.setAttribute('data-stage-meteor-active',String(activeStageMeteors.length));canvas.setAttribute('data-stage-meteor-warnings',String(warningMeteors.length));canvas.setAttribute('data-stage-star',game.currentStage?.id==='SEOUL_01'?'auto':metrics.stageStarCollected?'collected':worldState.stageStar?'available':'none');if(game.gameMode==='stage'){if(!responsiveStageBackgroundDrawn)drawCityBackdrop();}else drawInfiniteBackdrop();const sx=effects.shake?randomRange(-effects.shake,effects.shake):0,sy=effects.shake?randomRange(-effects.shake,effects.shake):0;ctx.save();ctx.translate(sx,sy);drawFinish();drawStageMeteorWarnings();drawStructures();drawTrail();if(game.gameMode==='infinite')drawShards();else drawStageStar();drawPlayerLine(game.activeLine);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);drawFragments();drawParticles();if(game.phase!=='dying'&&game.screen!=='stageClear')drawBall(game.phase==='homeStarting'?'#FFFFFF':null);drawFloatingTexts();drawTutorial();ctx.restore();if(!game.previewHideHud&&game.phase!=='homeStarting')drawHud();drawBanner();}
+    function drawWorldScene(){if(input.drawing)syncDrawingWorldPoints();const movingObjects=worldState.objects.filter(object=>object.movement),activeStageMeteors=worldState.objects.filter(object=>object.stageMeteor),warningMeteors=worldState.stageMeteors.filter(schedule=>schedule.state==='warning');canvas.setAttribute('data-game-mode',game.gameMode||'');canvas.setAttribute('data-infinite-phase',game.gameMode==='infinite'?game.infinitePhase:'');canvas.setAttribute('data-world-object-types',[...new Set(worldState.objects.map(object=>object.type))].sort().join(','));canvas.setAttribute('data-moving-object-count',String(movingObjects.length));canvas.setAttribute('data-moving-sample',movingObjects.length?`${movingObjects[0].x.toFixed(2)},${movingObjects[0].y.toFixed(2)}`:'');canvas.setAttribute('data-wormhole-count',String(worldState.wormholes.length));canvas.setAttribute('data-wormhole-pairs',String(worldState.wormholePairs.size));canvas.setAttribute('data-stage-meteor-schedules',String(worldState.stageMeteors.length));canvas.setAttribute('data-stage-meteor-active',String(activeStageMeteors.length));canvas.setAttribute('data-stage-meteor-warnings',String(warningMeteors.length));canvas.setAttribute('data-stage-star',game.currentStage?.id==='SEOUL_01'?'auto':metrics.stageStarCollected?'collected':worldState.stageStar?'available':'none');if(game.gameMode==='stage'){if(!responsiveStageBackgroundDrawn)drawCityBackdrop();}else drawInfiniteBackdrop();const sx=effects.shake?randomRange(-effects.shake,effects.shake):0,sy=effects.shake?randomRange(-effects.shake,effects.shake):0;ctx.save();ctx.translate(sx,sy);drawFinish();drawStageMeteorWarnings();drawStructures();drawTrail();if(game.gameMode==='infinite')drawShards();else drawStageStar();drawPlayerLine(game.activeLine);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);drawFragments();drawParticles();if(game.phase!=='dying'&&game.screen!=='stageClear')drawBall(game.phase==='homeStarting'?'#FFFFFF':null);drawFloatingTexts();drawTutorial();ctx.restore();drawTutorialOverlay();drawTutorialFade();if(!game.previewHideHud&&game.phase!=='homeStarting')drawHud();drawBanner();}
 
     // =========================================================================
     // Rendering — UI screens
@@ -3689,10 +4328,291 @@
     function drawMainMenu(){drawMenuBackdrop();const elapsed=Math.max(0,game.uiTime-game.menuEnteredAt),logoAlpha=smoothstep(elapsed/.34),topAlpha=smoothstep(elapsed/.28);drawHomeTopBar(topAlpha,true);drawHomeLogo(logoAlpha,true);drawHomeBottomNav(smoothstep((elapsed-.12)/.3),true);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);canvas.setAttribute('data-home-menu-count','3');canvas.setAttribute('data-home-menu-style','bottom-navigation');canvas.setAttribute('data-home-prompt','removed');canvas.setAttribute('data-home-gradient-layer','css-only');}
     function drawHomeTransitionOverlay(){const alpha=smoothstep(game.homeTransition/Math.max(.001,game.homeTransitionDuration));drawHomeTopBar(alpha,false);drawHomeLogo(alpha,false);drawHomeBottomNav(alpha,false);}
     function cityStars(cityId){return STAGES[cityId].reduce((sum,stage)=>sum+(progress.stars[stage.id]||0),0);}
+
+    function drawWorldCityLockPreview(
+      x,
+      y,
+      w,
+      h
+    ){
+      ctx.save();
+
+      drawRoundedRect(
+        x,
+        y,
+        w,
+        h,
+        8,
+        'rgba(255,255,255,.035)',
+        'rgba(255,255,255,.12)',
+        1
+      );
+
+      const cx=x+w/2;
+      const cy=y+h/2+2;
+
+      const scale=
+        Math.min(
+          w/74,
+          h/48
+        );
+
+      ctx.strokeStyle='rgba(208,216,225,.72)';
+      ctx.fillStyle='rgba(199,207,216,.72)';
+      ctx.lineWidth=Math.max(1.6,2.4*scale);
+      ctx.lineCap='round';
+
+      // lock shackle
+      ctx.beginPath();
+      ctx.arc(
+        cx,
+        cy-8*scale,
+        8*scale,
+        Math.PI,
+        0
+      );
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(
+        cx-8*scale,
+        cy-8*scale
+      );
+      ctx.lineTo(
+        cx-8*scale,
+        cy
+      );
+      ctx.moveTo(
+        cx+8*scale,
+        cy-8*scale
+      );
+      ctx.lineTo(
+        cx+8*scale,
+        cy
+      );
+      ctx.stroke();
+
+      // lock body
+      drawRoundedRect(
+        cx-12*scale,
+        cy,
+        24*scale,
+        18*scale,
+        4*scale,
+        'rgba(202,210,220,.72)'
+      );
+
+      // key hole
+      ctx.fillStyle='rgba(39,45,52,.88)';
+      ctx.beginPath();
+      ctx.arc(
+        cx,
+        cy+7*scale,
+        2.4*scale,
+        0,
+        Math.PI*2
+      );
+      ctx.fill();
+
+      ctx.fillRect(
+        cx-1*scale,
+        cy+8*scale,
+        2*scale,
+        5*scale
+      );
+
+      ctx.restore();
+    }
+
     function drawCityPreview(cityId,x,y,w,h,enabled){if(cityId==='seoul'){drawStageImagePreview('SEOUL_GENERAL_DAY',x,y,w,h,enabled,8);return;}if(cityId==='newyork'){drawStageImagePreview('newyork01',x,y,w,h,enabled,8);return;}if(cityId==='tokyo'){drawStageImagePreview('tokyo10',x,y,w,h,enabled,8);return;}ctx.save();roundedRectPath(ctx,x,y,w,h,8);ctx.clip();ctx.globalAlpha=enabled?.72:.34;const gradients={paris:['#796e65','#413b3d'],dubai:['#777166','#343238'],singapore:['#4d726d','#253b3d']},palette=gradients[cityId],gradient=ctx.createLinearGradient(0,y,0,y+h);gradient.addColorStop(0,palette[0]);gradient.addColorStop(1,palette[1]);ctx.fillStyle=gradient;ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(12,17,22,.72)';if(cityId==='paris'){for(let i=0;i<5;i++){const bx=x+i*w*.22;ctx.fillRect(bx,y+h*.48,w*.2,h);ctx.beginPath();ctx.moveTo(bx,y+h*.48);ctx.lineTo(bx+w*.1,y+h*.25);ctx.lineTo(bx+w*.2,y+h*.48);ctx.fill();}ctx.strokeStyle='rgba(15,18,22,.75)';ctx.beginPath();ctx.moveTo(x+w*.72,y+h);ctx.lineTo(x+w*.82,y+h*.18);ctx.lineTo(x+w*.92,y+h);ctx.stroke();}else if(cityId==='dubai'){ctx.fillRect(x,y+h*.72,w,h);ctx.beginPath();ctx.moveTo(x+w*.45,y+h);ctx.lineTo(x+w*.53,y+h*.02);ctx.lineTo(x+w*.61,y+h);ctx.fill();}else{ctx.fillRect(x,y+h*.68,w,h);for(const px of[.24,.72]){ctx.fillRect(x+w*px-1,y+h*.32,3,h*.48);ctx.beginPath();ctx.arc(x+w*px,y+h*.3,8,0,Math.PI*2);ctx.fill();}}ctx.restore();drawRoundedRect(x,y,w,h,8,null,enabled?'rgba(255,255,255,.14)':'rgba(255,255,255,.06)',1);}
     function drawWorldSelect(){
-      fillVerticalGradient('#1b232a',COLORS.background);drawSkylineLayer(844,'#1b2026',0,.68,false);drawBackButton('worldBack');ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=COLORS.white;ctx.font='780 26px ui-sans-serif, sans-serif';ctx.fillText('WORLD TOUR',24,82);ctx.fillStyle=COLORS.muted;ctx.font='600 10px ui-sans-serif, sans-serif';ctx.fillText('CITY ROUTE',25,118);ctx.strokeStyle='rgba(130,199,255,.2)';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(54,170);ctx.bezierCurveTo(25,300,85,440,54,690);ctx.stroke();canvas.setAttribute('data-world-seoul-preview','SEOUL_GENERAL_DAY');
-      CITY_ORDER.forEach((cityId,index)=>{const city=CITIES[cityId],unlocked=(progress.unlocked[cityId]||0)>0&&STAGES[cityId].length>0,y=154+index*91;ctx.fillStyle=unlocked?COLORS.accent:'#454c55';ctx.beginPath();ctx.arc(54,y+27,unlocked?6:4,0,Math.PI*2);ctx.fill();if(unlocked){ctx.strokeStyle='rgba(130,199,255,.24)';ctx.lineWidth=5;ctx.beginPath();ctx.arc(54,y+27,11,0,Math.PI*2);ctx.stroke();}ctx.textAlign='left';ctx.textBaseline='top';ctx.fillStyle=unlocked?COLORS.white:'#69717b';ctx.font='720 14px ui-sans-serif, sans-serif';ctx.fillText(city.name,82,y+9);ctx.fillStyle=unlocked?COLORS.muted:'#515861';ctx.font='600 9px ui-sans-serif, sans-serif';ctx.fillText(unlocked?city.sub:'LOCKED',82,y+33);drawCityPreview(cityId,226,y+7,74,40,unlocked);ctx.textAlign='right';ctx.fillStyle=unlocked?COLORS.finish:'#515861';ctx.font='650 9px ui-sans-serif, sans-serif';ctx.fillText(unlocked?`${cityStars(cityId)} ★`:'LOCK',350,y+23);if(unlocked)registerHitArea(70,y-2,294,64,`city:${cityId}`);});
+      fillVerticalGradient(
+        '#1b232a',
+        COLORS.background
+      );
+
+      drawSkylineLayer(
+        844,
+        '#1b2026',
+        0,
+        .68,
+        false
+      );
+
+      drawBackButton('worldBack');
+
+      ctx.textAlign='left';
+      ctx.textBaseline='top';
+
+      ctx.fillStyle=COLORS.white;
+      ctx.font='780 26px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        'WORLD TOUR',
+        24,
+        82
+      );
+
+      ctx.fillStyle=COLORS.muted;
+      ctx.font='600 10px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        'CITY ROUTE',
+        25,
+        118
+      );
+
+      ctx.strokeStyle='rgba(130,199,255,.2)';
+      ctx.lineWidth=2;
+
+      ctx.beginPath();
+      ctx.moveTo(
+        54,
+        170
+      );
+
+      ctx.bezierCurveTo(
+        25,
+        300,
+        85,
+        440,
+        54,
+        690
+      );
+
+      ctx.stroke();
+
+      CITY_ORDER.forEach(
+        (
+          cityId,
+          index
+        )=>{
+          const city=CITIES[cityId];
+
+          const unlocked=
+            (progress.unlocked[cityId]||0)>0 &&
+            STAGES[cityId].length>0;
+
+          const y=
+            154+
+            index*91;
+
+          ctx.fillStyle=
+            unlocked
+              ? COLORS.accent
+              : '#454c55';
+
+          ctx.beginPath();
+
+          ctx.arc(
+            54,
+            y+27,
+            unlocked?6:4,
+            0,
+            Math.PI*2
+          );
+
+          ctx.fill();
+
+          if(unlocked){
+            ctx.strokeStyle='rgba(130,199,255,.24)';
+            ctx.lineWidth=5;
+
+            ctx.beginPath();
+
+            ctx.arc(
+              54,
+              y+27,
+              11,
+              0,
+              Math.PI*2
+            );
+
+            ctx.stroke();
+          }
+
+          ctx.textAlign='left';
+          ctx.textBaseline='top';
+
+          ctx.fillStyle=
+            unlocked
+              ? COLORS.white
+              : '#69717b';
+
+          ctx.font='720 14px ui-sans-serif, sans-serif';
+
+          ctx.fillText(
+            city.name,
+            82,
+            y+9
+          );
+
+          ctx.fillStyle=
+            unlocked
+              ? COLORS.muted
+              : '#515861';
+
+          ctx.font='600 9px ui-sans-serif, sans-serif';
+
+          ctx.fillText(
+            unlocked
+              ? city.sub
+              : 'LOCKED',
+            82,
+            y+33
+          );
+
+          // --------------------------------
+          // 핵심:
+          // LOCKED 도시에는 사진을 전혀 안 보여준다.
+          // --------------------------------
+          if(unlocked){
+            drawCityPreview(
+              cityId,
+              226,
+              y+7,
+              74,
+              40,
+              true
+            );
+          }else{
+            drawWorldCityLockPreview(
+              226,
+              y+7,
+              74,
+              40
+            );
+          }
+
+          // 오른쪽 LOCK 텍스트 완전 삭제.
+          if(unlocked){
+            ctx.textAlign='right';
+            ctx.fillStyle=COLORS.finish;
+            ctx.font='650 9px ui-sans-serif, sans-serif';
+
+            ctx.fillText(
+              `${cityStars(cityId)} ★`,
+              350,
+              y+23
+            );
+          }
+
+          if(unlocked){
+            registerHitArea(
+              70,
+              y-2,
+              294,
+              64,
+              `city:${cityId}`
+            );
+          }
+        }
+      );
+
+      canvas.setAttribute(
+        'data-world-lock-preview',
+        'padlock-no-lock-text'
+      );
     }
     function drawStageImagePreview(background,x,y,w,h,enabled,radius=5){
       const selectedBackground=STAGE_IMAGE_BACKGROUNDS[background]?background:'SEOUL_GENERAL_DAY',definition=STAGE_IMAGE_BACKGROUNDS[selectedBackground],record=stageBackgroundImages.get(selectedBackground),focusX=definition.focusX??.5;
@@ -4870,7 +5790,7 @@
     function applyLogicalViewportTransform(){ctx.setTransform(pixelRatio*viewport.worldScale,0,0,pixelRatio*viewport.worldScale,pixelRatio*viewport.offsetX,pixelRatio*viewport.offsetY);ctx.beginPath();ctx.rect(0,0,WORLD.width,WORLD.height);ctx.clip();ctx.globalAlpha=1;}
     function render(){
       activateViewportForScreen();drawResponsiveViewportBackdrop();ctx.save();applyLogicalViewportTransform();ui.hitAreas.length=0;
-      const worldScreens=['playing','infiniteResult','stageFailed','stageClear'],resultScreen=['infiniteResult','stageFailed','stageClear'].includes(game.screen);if(worldScreens.includes(game.screen)){drawWorldScene();if(game.phase==='homeStarting')drawHomeTransitionOverlay();}else if(game.screen==='menu')drawMainMenu();else if(game.screen==='skinSelect')drawSkinSelect();else if(game.screen==='achievements')drawAchievements();else if(game.screen==='worldSelect')drawWorldSelect();else if(game.screen==='stageSelect')drawStageSelect();else if(game.screen==='settings')drawSettings();ctx.restore();
+      const worldScreens=['playing','infiniteResult','stageFailed','stageClear'],resultScreen=['infiniteResult','stageFailed','stageClear'].includes(game.screen);if(worldScreens.includes(game.screen)){drawWorldScene();if(game.phase==='homeStarting')drawHomeTransitionOverlay();}else if(game.screen==='menu'){drawMainMenu();drawTutorialHomeSpotlight();}else if(game.screen==='skinSelect')drawSkinSelect();else if(game.screen==='achievements')drawAchievements();else if(game.screen==='worldSelect')drawWorldSelect();else if(game.screen==='stageSelect')drawStageSelect();else if(game.screen==='settings')drawSettings();ctx.restore();
       canvas.setAttribute('data-responsive-result-cover',resultScreen?'true':'false');if(resultScreen){drawResponsiveResultCover();ctx.save();applyLogicalViewportTransform();if(game.screen==='infiniteResult')drawInfiniteResult(false);else if(game.screen==='stageFailed')drawStageFailed(false);else drawStageClear(false);ctx.restore();}if(effects.achievementToast){ctx.save();applyLogicalViewportTransform();drawAchievementToast();ctx.restore();}updateAriaLabel();
     }
 
@@ -6947,14 +7867,19 @@
         ctx.restore();
       };
 
-    prepareHomeIdle();
+    if(tutorialShouldStart()){
+      startFirstVisitTutorial();
+    }else{
+      prepareHomeIdle();
+    }
+
     applyLocalPreviewQuery();
 
     // =========================================================================
     // Game loop
     // =========================================================================
     let previousTimestamp=performance.now(),accumulator=0;
-    function gameLoop(timestamp){const frameTime=Math.min((timestamp-previousTimestamp)/1000,.05);previousTimestamp=timestamp;game.uiTime+=frameTime;updateDesktopDrawingAssist();if(game.screen==='playing'){accumulator+=frameTime;while(accumulator>=PHYSICS.fixedStep){updatePhysics(PHYSICS.fixedStep);accumulator-=PHYSICS.fixedStep;}}else accumulator=0;updateTransitions(frameTime);updateEffects(frameTime);render();requestAnimationFrame(gameLoop);}
+    function gameLoop(timestamp){const frameTime=Math.min((timestamp-previousTimestamp)/1000,.05);previousTimestamp=timestamp;game.uiTime+=frameTime;updateDesktopDrawingAssist();if(game.screen==='playing'){accumulator+=frameTime;while(accumulator>=PHYSICS.fixedStep){updatePhysics(PHYSICS.fixedStep);accumulator-=PHYSICS.fixedStep;}}else accumulator=0;updateTransitions(frameTime);updateTutorialFade(frameTime);updateEffects(frameTime);render();requestAnimationFrame(gameLoop);}
     requestAnimationFrame(gameLoop);
   </script>
 </body>
