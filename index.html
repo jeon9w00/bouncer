@@ -118,33 +118,21 @@
 
     .bouncer-boot-ball-area {
       position: relative;
-
-      width: .55em;
+      width: .66em;
       height: 1em;
-
-      margin:
-        0
-        .05em;
+      margin: 0 .06em;
+      flex: 0 0 .66em;
     }
 
     .bouncer-boot-ball {
       position: absolute;
-
       left: 50%;
       top: 50%;
-
-      width: .43em;
-      height: .43em;
-
+      width: .52em;
+      height: .52em;
       border-radius: 50%;
-
       background: #ffffff;
-
-      transform:
-        translate(
-          -50%,
-          -42%
-        );
+      transform: translate(-50%, -42%);
     }
 
     .bouncer-boot-dot {
@@ -207,16 +195,6 @@
       }
     }
 
-  
-    
-
-  
-    /* BOUNCER BOOT LOGO SIZE OVERRIDE */
-    #bouncer-boot-splash .bouncer-boot-logo {
-      scale: 0.5;
-      transform-origin: center center;
-    }
-    /* END BOUNCER BOOT LOGO SIZE OVERRIDE */
 
   </style>
 </head>
@@ -783,22 +761,51 @@
       active:false,
       firstVisit:false,
 
-      // intro → play → wallWhite → wallRed → wallBlue
-      // → homeWorld → homeSkins → homeAchievements → done
+      /*
+        NEW TUTORIAL FLOW
+
+        intro
+          ↓
+        play
+          ↓ first line bounce
+        wallWhite
+          ↓ tap
+        wallRed
+          ↓ tap
+        wallBlue
+          ↓ tap
+        fadeToHome
+          ↓
+        homeWorld
+          ↓
+        homeSkins
+          ↓
+        homeAchievements
+          ↓
+        done
+      */
+
       step:'idle',
 
-      overlayAlpha:0,
       fadeAlpha:0,
 
-      checkpoint:'start',
-
       frozen:false,
+
+      /*
+        실제 충돌용 벽이 아니라
+        설명 화면에서 보여줄 demonstration wall.
+      */
       wall:null,
 
       homeFocus:null,
 
+      startingBounces:0,
+
       completed:
-        safeGet('bouncer_tutorial_completed','0') === '1'
+        safeGet(
+          'bouncer_tutorial_completed',
+          '0'
+        ) === '1'
     };
 
     function tutorialShouldStart(){
@@ -807,54 +814,41 @@
 
     function tutorialSaveComplete(){
       tutorial.completed=true;
-      safeSet('bouncer_tutorial_completed','1');
+
+      safeSet(
+        'bouncer_tutorial_completed',
+        '1'
+      );
     }
 
     function tutorialResetRuntime(){
       tutorial.active=false;
       tutorial.firstVisit=false;
       tutorial.step='idle';
-      tutorial.overlayAlpha=0;
       tutorial.fadeAlpha=0;
-      tutorial.checkpoint='start';
       tutorial.frozen=false;
       tutorial.wall=null;
       tutorial.homeFocus=null;
+      tutorial.startingBounces=0;
+
+      game.previewHideHud=false;
+
+      canvas.setAttribute(
+        'data-tutorial',
+        'done'
+      );
     }
 
-    const metrics={lines:0,perfects:0,shards:0,boosts:0,successfulBounces:0,maxCombo:1,totalStageShards:0,stageStarCollected:false};
-    const ball={x:WORLD.width/2,y:540,previousX:WORLD.width/2,previousY:540,vx:22,vy:-110,radius:9,wormholeCooldown:0};
-    const camera={y:0,targetY:0};
-    const worldState={objects:[],shards:[],stageStar:null,stageMeteors:[],wormholes:[],wormholePairs:new Map(),segments:[],generatedTopY:0,objectSerial:0,segmentSerial:0,lastTemplateId:'',environmentPhase:'sky',environmentMisses:0,finishY:null,theme:'infinite'};
-    const input={state:'idle',pointerId:null,pointerType:null,drawing:false,start:null,end:null,startScreen:null,endScreen:null,lastRaw:null,lastMoveAt:0,captureLost:false,hoverAction:null};
-    const effects={particles:[],fragments:[],trail:[],texts:[],shake:0,trailClock:0,banner:null,achievementToast:null};
-    const ui={hitAreas:[]};
-
-    function completedStageCount(cityId,state=progress){const stages=STAGES[cityId]||[],completed=state.completed||{},stars=state.stars||{};return stages.reduce((total,stage)=>total+(completed[stage.id]||Number(stars[stage.id])>0?1:0),0);}
-    function achievementProgress(definition,state=progress,bestScore=game.best){if(definition.cityId)return{current:completedStageCount(definition.cityId,state),target:definition.requiredStages};if(definition.condition==='worldStars')return{current:Object.values(state.stars||{}).reduce((total,value)=>total+clamp(Number(value)||0,0,3),0),target:definition.target};if(definition.condition==='bestScore')return{current:Math.max(0,Number(bestScore)||0),target:definition.target};return{current:0,target:1};}
-    function isAchievementUnlocked(id,state=progress){const record=state.achievements?.[id];return record===true||Boolean(record?.unlocked);}
-    function showAchievementToast(definition){effects.achievementToast={definition,life:3,maxLife:3};audio.achievement();}
-    function reconcileAchievements(showNotifications=false){let changed=false;for(const definition of ACHIEVEMENTS){const status=achievementProgress(definition),complete=status.current>=status.target;if(!complete||isAchievementUnlocked(definition.id))continue;progress.achievements[definition.id]={unlocked:true,unlockedAt:Date.now()};changed=true;if(showNotifications&&definition.notify)showAchievementToast(definition);}if(changed)saveProgress();return changed;}
-
-    function resetMetrics(){ metrics.lines=0;metrics.perfects=0;metrics.shards=0;metrics.boosts=0;metrics.successfulBounces=0;metrics.maxCombo=1;metrics.totalStageShards=0;metrics.stageStarCollected=false; }
-    function resetEffects(){ effects.particles.length=0;effects.fragments.length=0;effects.trail.length=0;effects.texts.length=0;effects.shake=0;effects.trailClock=0;effects.banner=null;effects.achievementToast=null; }
-    function resetRuntime(){
-      game.phase='playing';game.score=0;game.combo=1;game.elapsed=0;game.resultTime=0;game.transitionTimer=0;game.homeTransition=0;game.homeTransitionDuration=HOME_LAYOUT.transitionDuration;game.homeLaunch=false;game.activeLine=null;game.lineDrawnThisRun=false;game.tutorialAlpha=game.hasEverDrawn?0:1;game.unlockedNotices=new Set();game.altitude=0;game.displayAltitude=0;game.highestCameraY=0;game.totalClimbDistance=0;game.infinitePhase='sky';game.phaseAdvanceCooldown=0;game.previewHideHud=false;
-      ball.x=WORLD.width/2;ball.y=540;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=22;ball.vy=-110;ball.wormholeCooldown=0;
-      camera.y=0;camera.targetY=0;input.state='idle';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;input.hoverAction=null;resetMetrics();resetEffects();
-      worldState.objects.length=0;worldState.shards.length=0;worldState.stageStar=null;worldState.stageMeteors.length=0;worldState.wormholes.length=0;worldState.wormholePairs.clear();worldState.segments.length=0;worldState.generatedTopY=0;worldState.objectSerial=0;worldState.segmentSerial=0;worldState.lastTemplateId='';worldState.environmentPhase='sky';worldState.environmentMisses=0;worldState.finishY=null;canvas.removeAttribute('data-last-committed-line');
-    }
 
     function startFirstVisitTutorial(){
       tutorial.active=true;
       tutorial.firstVisit=true;
       tutorial.step='intro';
-      tutorial.overlayAlpha=1;
       tutorial.fadeAlpha=0;
-      tutorial.checkpoint='start';
       tutorial.frozen=true;
       tutorial.wall=null;
       tutorial.homeFocus=null;
+      tutorial.startingBounces=0;
 
       game.gameMode='infinite';
       game.currentStage=null;
@@ -865,52 +859,240 @@
       game.phase='tutorialPaused';
       game.previewHideHud=true;
 
-      // HOME과 동일한 기본 하늘
       worldState.theme='infinite:city';
 
-      // 처음에는 장애물 없는 공간
+      /*
+        일반 Infinite 자동 장애물은 전부 끈다.
+        튜토리얼에서 랜덤 장애물이 끼어들지 않게 함.
+      */
       worldState.objects.length=0;
       worldState.shards.length=0;
       worldState.segments.length=0;
-      worldState.generatedTopY=-1400;
+      worldState.generatedTopY=-99999;
 
       ball.x=WORLD.width/2;
       ball.y=540;
+
       ball.previousX=ball.x;
       ball.previousY=ball.y;
+
       ball.vx=0;
       ball.vy=0;
 
       camera.y=0;
       camera.targetY=0;
 
-      canvas.setAttribute('data-tutorial','intro');
+      game.activeLine=null;
+
+      canvas.setAttribute(
+        'data-tutorial',
+        'intro'
+      );
     }
+
 
     function beginTutorialPlay(){
       tutorial.step='play';
       tutorial.frozen=false;
-      tutorial.overlayAlpha=0;
-      tutorial.checkpoint='play';
+      tutorial.fadeAlpha=0;
+      tutorial.wall=null;
+
+      tutorial.startingBounces=
+        metrics.successfulBounces;
 
       game.phase='playing';
       game.previewHideHud=true;
 
+      /*
+        화면 가운데에서 천천히 낙하.
+        사용자가 직접 아래에 선을 그어
+        처음으로 한 번 튕기면 다음 단계로 이동.
+      */
       ball.x=WORLD.width/2;
-      ball.y=520;
+      ball.y=430;
+
       ball.previousX=ball.x;
       ball.previousY=ball.y;
-      ball.vx=18;
-      ball.vy=-60;
+
+      ball.vx=10;
+      ball.vy=45;
+
+      camera.y=0;
+      camera.targetY=0;
 
       worldState.objects.length=0;
       worldState.shards.length=0;
       worldState.segments.length=0;
+      worldState.generatedTopY=-99999;
 
-      createTutorialWall();
+      game.activeLine=null;
 
-      canvas.setAttribute('data-tutorial','play');
+      canvas.setAttribute(
+        'data-tutorial',
+        'play'
+      );
     }
+
+
+    function beginTutorialWallExplanation(){
+      if(
+        !tutorial.active ||
+        tutorial.step!=='play'
+      ){
+        return;
+      }
+
+      tutorial.step='wallWhite';
+      tutorial.frozen=true;
+
+      game.phase='tutorialPaused';
+      game.previewHideHud=true;
+      game.activeLine=null;
+
+      /*
+        실제 플레이 월드를 멈춘 시점 그대로 유지.
+        화면 위쪽에 demonstration wall만 별도로 그림.
+      */
+      tutorial.wall={
+        x:76,
+        y:300,
+        w:238,
+        h:16,
+        visualType:'wall'
+      };
+
+      abortDrawing();
+
+      canvas.setAttribute(
+        'data-tutorial',
+        'wallWhite'
+      );
+
+      audio.ui();
+    }
+
+
+    function setTutorialWallType(type){
+      if(!tutorial.wall){
+        tutorial.wall={
+          x:76,
+          y:300,
+          w:238,
+          h:16,
+          visualType:type
+        };
+      }
+
+      tutorial.wall.visualType=type;
+    }
+
+
+    function tutorialAdvance(){
+      if(!tutorial.active){
+        return false;
+      }
+
+      if(tutorial.step==='intro'){
+        beginTutorialPlay();
+        audio.ui();
+        return true;
+      }
+
+      /*
+        같은 위치의 벽이
+        흰색 → 빨간색 → 파란색으로만 변화.
+        물리 엔진은 계속 일시정지 상태.
+      */
+      if(tutorial.step==='wallWhite'){
+        tutorial.step='wallRed';
+
+        setTutorialWallType(
+          'deathwall'
+        );
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'wallRed'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='wallRed'){
+        tutorial.step='wallBlue';
+
+        setTutorialWallType(
+          'jumpwall'
+        );
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'wallBlue'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='wallBlue'){
+        tutorial.step='fadeToHome';
+        tutorial.fadeAlpha=0;
+        tutorial.frozen=true;
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'fadeToHome'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeWorld'){
+        tutorial.step='homeSkins';
+        tutorial.homeFocus='skin';
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'homeSkins'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeSkins'){
+        tutorial.step='homeAchievements';
+        tutorial.homeFocus='achievements';
+
+        canvas.setAttribute(
+          'data-tutorial',
+          'homeAchievements'
+        );
+
+        audio.ui();
+        return true;
+      }
+
+      if(tutorial.step==='homeAchievements'){
+        tutorial.step='done';
+        tutorial.homeFocus=null;
+
+        tutorialSaveComplete();
+
+        tutorialResetRuntime();
+
+        prepareHomeIdle();
+
+        audio.ui();
+
+        return true;
+      }
+
+      return false;
+    }
+
 
     function startInfinite(){ audio.ui();game.gameMode='infinite';game.currentStage=null;game.screen='playing';resetRuntime();ball.vx=Math.random()<.5?-22:22;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld(); }
     function prepareHomeIdle(){game.gameMode='infinite';game.currentStage=null;resetRuntime();game.screen='menu';game.phase='homeIdle';game.menuEnteredAt=game.uiTime;ball.x=WORLD.width/2;ball.y=HOME_LAYOUT.logoY;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld();canvas.setAttribute('data-home-state','HOME_IDLE');}
@@ -1042,10 +1224,17 @@
     function releasePointerCapture(pointerId){if(pointerId===null||pointerId===undefined)return;try{if(!canvas.hasPointerCapture||canvas.hasPointerCapture(pointerId))canvas.releasePointerCapture(pointerId);}catch(error){}}
     function abortDrawing(pointerId=input.pointerId){const capturedId=pointerId;clearDrawingState();releasePointerCapture(capturedId);}
     function canDrawLineNow(){
-      if(
-        tutorial.active &&
-        tutorial.step!=='play'
-      ) return false;
+      /*
+        intro / 벽 설명 / 홈 기능 설명 중에는
+        절대 선이 그어지지 않는다.
+      */
+      if(tutorial.active){
+        return (
+          tutorial.step==='play' &&
+          game.screen==='playing' &&
+          game.phase==='playing'
+        );
+      }
 
       return(
         (
@@ -1059,10 +1248,23 @@
       );
     }
     function beginPointer(event){
-      if(event.isPrimary===false||(event.pointerType==='mouse'&&event.button!==0))return;
+      if(
+        event.isPrimary===false ||
+        (
+          event.pointerType==='mouse' &&
+          event.button!==0
+        )
+      ){
+        return;
+      }
+
       event.preventDefault();
+
       audio.unlock();
 
+      /*
+        클릭만으로 진행하는 튜토리얼 화면.
+      */
       if(
         tutorial.active &&
         [
@@ -1079,7 +1281,62 @@
         return;
       }
 
-      const point=pointerToScreen(event),hit=findHitArea(point);if(hit){input.hoverAction=hit.action;handleAction(hit.action);return;}if(!canDrawLineNow()||input.state!=='idle'||input.pointerId!==null)return;input.state='drawing';input.pointerId=event.pointerId;input.pointerType=event.pointerType||'mouse';input.drawing=true;input.startScreen={...point};input.endScreen={...point};input.lastRaw={...point};input.lastMoveAt=game.uiTime;syncDrawingWorldPoints();input.captureLost=false;try{canvas.setPointerCapture(event.pointerId);}catch(error){input.captureLost=true;}}
+      const point=
+        pointerToScreen(event);
+
+      const hit=
+        findHitArea(point);
+
+      if(hit){
+        input.hoverAction=hit.action;
+        handleAction(hit.action);
+        return;
+      }
+
+      if(
+        !canDrawLineNow() ||
+        input.state!=='idle' ||
+        input.pointerId!==null
+      ){
+        return;
+      }
+
+      input.state='drawing';
+      input.pointerId=event.pointerId;
+      input.pointerType=
+        event.pointerType||
+        'mouse';
+
+      input.drawing=true;
+
+      input.startScreen={
+        ...point
+      };
+
+      input.endScreen={
+        ...point
+      };
+
+      input.lastRaw={
+        ...point
+      };
+
+      input.lastMoveAt=
+        game.uiTime;
+
+      syncDrawingWorldPoints();
+
+      input.captureLost=false;
+
+      try{
+        canvas.setPointerCapture(
+          event.pointerId
+        );
+      }catch(error){
+        input.captureLost=true;
+      }
+    }
+
     function movePointer(event){if(input.state!=='drawing'||event.pointerId!==input.pointerId){if(!input.drawing&&event.target===canvas)input.hoverAction=findHitArea(pointerToScreen(event))?.action||null;return;}event.preventDefault();updateDrawingEndpoint(event);}
     function commitCurrentDrawing(){
       if(input.state!=='drawing'||!input.start||!input.end)return false;syncDrawingWorldPoints();const fromHome=game.screen==='menu'&&game.phase==='homeIdle',start={...input.start},end={...input.end},length=Math.hypot(end.x-start.x,end.y-start.y),capturedId=input.pointerId;input.state='committing';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;
@@ -1493,7 +1750,18 @@
       const normalLength=Math.hypot(normal.x,normal.y)||1,nx=normal.x/normalLength,ny=normal.y/normalLength,boost=perfect?92:58;reflected.x+=nx*boost;reflected.y+=ny*boost;let left=line.a,right=line.b;if(left.x>right.x)[left,right]=[right,left];const dx=right.x-left.x,dy=right.y-left.y,lineLength=Math.max(1,Math.hypot(dx,dy)),slopeInfluence=clamp(Math.abs(dy)/lineLength,0,1),horizontalCertainty=smoothstep((Math.abs(dx)-6)/34),influence=slopeInfluence*horizontalCertainty;
       if(influence>.001){const desired=dy<0?1:-1,magnitude=Math.max(Math.abs(reflected.x),170*influence);reflected.x=lerp(reflected.x,desired*magnitude,.72*influence);}const minimum=perfect?PHYSICS.perfectMinSpeed:PHYSICS.minBounceSpeed;if(ny<-.14){const upwardFloor=minimum*(.22+.5*influence);reflected.y=Math.min(reflected.y,-upwardFloor);}let normalSpeed=reflected.x*nx+reflected.y*ny;const outwardFloor=perfect?118:92;if(normalSpeed<outwardFloor){reflected.x+=nx*(outwardFloor-normalSpeed);reflected.y+=ny*(outwardFloor-normalSpeed);}let speed=Math.hypot(reflected.x,reflected.y);if(speed<minimum){const scale=minimum/Math.max(1,speed);reflected.x*=scale;reflected.y*=scale;speed=minimum;}if(speed>PHYSICS.maxBallSpeed){const scale=PHYSICS.maxBallSpeed/speed;reflected.x*=scale;reflected.y*=scale;}return reflected;
     }
-    function handleLineCollision(hit,line){game.activeLine=null;let reflected=reflectVelocity({x:ball.vx,y:ball.vy},hit.normal,PHYSICS.lineRestitution);const perfect=Math.abs(hit.t-.5)<=LINE_RULES.perfectHalfWidth;reflected=applyArcadeBounce(reflected,line,hit.normal,perfect);ball.x=hit.x+hit.normal.x*(hit.collisionRadius+.8);ball.y=hit.y+hit.normal.y*(hit.collisionRadius+.8);ball.vx=reflected.x;ball.vy=reflected.y;scoreBounce(perfect,hit.x,hit.y);createLineBreak(line,perfect);spawnBurst(hit.x,hit.y,perfect?18:10,perfect?COLORS.accent:COLORS.white,perfect?250:180,perfect?.48:.35);addShake(perfect?3.6:1.5);if(perfect)audio.perfect();else audio.normal();}
+    function handleLineCollision(hit,line){game.activeLine=null;let reflected=reflectVelocity({x:ball.vx,y:ball.vy},hit.normal,PHYSICS.lineRestitution);const perfect=Math.abs(hit.t-.5)<=LINE_RULES.perfectHalfWidth;reflected=applyArcadeBounce(reflected,line,hit.normal,perfect);ball.x=hit.x+hit.normal.x*(hit.collisionRadius+.8);ball.y=hit.y+hit.normal.y*(hit.collisionRadius+.8);ball.vx=reflected.x;ball.vy=reflected.y;scoreBounce(perfect,hit.x,hit.y);
+
+      if(
+        tutorial.active &&
+        tutorial.step==='play' &&
+        metrics.successfulBounces >
+          tutorial.startingBounces
+      ){
+        beginTutorialWallExplanation();
+      }
+
+      createLineBreak(line,perfect);spawnBurst(hit.x,hit.y,perfect?18:10,perfect?COLORS.accent:COLORS.white,perfect?250:180,perfect?.48:.35);addShake(perfect?3.6:1.5);if(perfect)audio.perfect();else audio.normal();}
     function handleSolidCollision(hit,object,velocity){
       const rect={x:object.x,y:object.y,w:object.w,h:object.h},surface={vx:object.renderVX||0,vy:object.renderVY||0},relative={vx:velocity.vx-surface.vx,vy:velocity.vy-surface.vy},topBoost=object.type==='boost'&&!object.used&&isBoostTopLanding(hit,{x:ball.previousX,y:ball.previousY},{x:ball.x,y:ball.y},rect,relative),jumpHit=object.type==='jumpwall'&&(object.jumpCooldown||0)<=0;ball.x=hit.x+hit.normal.x*(ball.radius+1.2);ball.y=hit.y+hit.normal.y*(ball.radius+1.2);
       if(topBoost||jumpHit){const incoming=Math.abs(relative.vx*hit.normal.x+relative.vy*hit.normal.y),normalSpeed=clamp(Math.max(jumpHit?590:BOOST_RULES.topSpeed,incoming*(jumpHit?1.55:BOOST_RULES.speedMultiplier)),jumpHit?590:BOOST_RULES.topSpeed,PHYSICS.maxBallSpeed*.92),tangentDot=relative.vx*(-hit.normal.y)+relative.vy*hit.normal.x;ball.vx=(-hit.normal.y)*tangentDot*.72+hit.normal.x*normalSpeed+surface.vx;ball.vy=hit.normal.x*tangentDot*.72+hit.normal.y*normalSpeed+surface.vy;if(topBoost)object.used=true;object.jumpCooldown=.24;object.pulse=BOOST_RULES.pulseDuration;metrics.boosts++;if(game.gameMode==='infinite')addScore(BOOST_RULES.bonus);addFloatingText(game.gameMode==='infinite'?`${jumpHit?'JUMP':'BOOST'}! +${BOOST_RULES.bonus}`:`${jumpHit?'JUMP':'BOOST'}!`,object.x+object.w/2,object.y-32,COLORS.accent,16,.86);spawnBurst(object.x+object.w/2,object.y,18,COLORS.accent,270,.48,'diamond');for(let i=0;i<5;i++)effects.trail.push({x:ball.x+randomRange(-8,8),y:ball.y+i*8,vy:ball.vy,life:.24,maxLife:.24});addShake(3.2);audio.boost();}
@@ -3830,55 +4098,117 @@
       body,
       foot='화면을 터치해 계속'
     ){
-      const centerY=158;
-
       ctx.save();
 
       ctx.textAlign='center';
       ctx.textBaseline='middle';
 
       ctx.fillStyle='#FFFFFF';
-      ctx.font='780 18px ui-sans-serif, sans-serif';
+
+      ctx.font=
+        '780 18px ui-sans-serif, sans-serif';
+
       ctx.fillText(
         title,
         WORLD.width/2,
-        centerY
+        157
       );
 
-      ctx.fillStyle='rgba(255,255,255,.82)';
-      ctx.font='620 11px ui-sans-serif, sans-serif';
+      ctx.fillStyle=
+        'rgba(255,255,255,.86)';
 
-      const lines=body.split('\n');
+      ctx.font=
+        '620 11px ui-sans-serif, sans-serif';
 
-      lines.forEach(
-        (line,index)=>{
-          ctx.fillText(
-            line,
-            WORLD.width/2,
-            centerY+31+index*18
-          );
-        }
-      );
+      body
+        .split('\n')
+        .forEach(
+          (line,index)=>{
+            ctx.fillText(
+              line,
+              WORLD.width/2,
+              190+
+              index*18
+            );
+          }
+        );
 
-      ctx.fillStyle='rgba(255,255,255,.48)';
-      ctx.font='600 9px ui-sans-serif, sans-serif';
+      ctx.fillStyle=
+        'rgba(255,255,255,.54)';
+
+      ctx.font=
+        '600 9px ui-sans-serif, sans-serif';
 
       ctx.fillText(
         foot,
         WORLD.width/2,
-        WORLD.height-72
+        WORLD.height-70
       );
 
       ctx.restore();
     }
 
-    function drawTutorialOverlay(){
-      if(!tutorial.active)return;
 
+    function drawTutorialDemoWall(){
+      if(!tutorial.wall){
+        return;
+      }
+
+      const wall=
+        tutorial.wall;
+
+      let color=
+        '#FFFFFF';
+
+      if(
+        wall.visualType===
+        'deathwall'
+      ){
+        color='#F36872';
+      }
+
+      if(
+        wall.visualType===
+        'jumpwall'
+      ){
+        color='#71C9EE';
+      }
+
+      ctx.save();
+
+      ctx.fillStyle=color;
+
+      /*
+        튜토리얼에서는 아주 명확하게
+        납작한 단색 벽 하나만 보여준다.
+      */
+      drawRoundedRect(
+        wall.x,
+        wall.y,
+        wall.w,
+        wall.h,
+        wall.h/2,
+        color
+      );
+
+      ctx.restore();
+    }
+
+
+    function drawTutorialOverlay(){
+      if(!tutorial.active){
+        return;
+      }
+
+      /*
+        첫 인사.
+      */
       if(tutorial.step==='intro'){
         ctx.save();
 
-        ctx.fillStyle='rgba(38,42,47,.74)';
+        ctx.fillStyle=
+          'rgba(45,48,52,.74)';
+
         ctx.fillRect(
           0,
           0,
@@ -3893,53 +4223,68 @@
         );
 
         ctx.restore();
+
         return;
       }
 
+
+      /*
+        첫 실제 조작.
+        회색막 없이 게임 화면 그대로.
+      */
       if(tutorial.step==='play'){
         ctx.save();
+
+        drawRoundedRect(
+          38,
+          WORLD.height-144,
+          WORLD.width-76,
+          66,
+          18,
+          'rgba(20,31,42,.30)'
+        );
 
         ctx.textAlign='center';
         ctx.textBaseline='middle';
 
-        ctx.fillStyle='rgba(18,27,36,.30)';
-        drawRoundedRect(
-          42,
-          WORLD.height-151,
-          WORLD.width-84,
-          78,
-          18,
-          'rgba(14,24,34,.28)'
-        );
-
         ctx.fillStyle='#FFFFFF';
-        ctx.font='720 13px ui-sans-serif, sans-serif';
+
+        ctx.font=
+          '720 12px ui-sans-serif, sans-serif';
 
         ctx.fillText(
-          '공 아래에 선을 그어',
+          '공 바로 아래에 선을 그어',
           WORLD.width/2,
-          WORLD.height-123
+          WORLD.height-118
         );
 
         ctx.fillText(
           '떨어지는 공을 튕겨보세요',
           WORLD.width/2,
-          WORLD.height-103
+          WORLD.height-99
         );
 
         ctx.restore();
+
         return;
       }
 
+
       if(
-        tutorial.step==='wallWhite' ||
-        tutorial.step==='wallRed' ||
-        tutorial.step==='wallBlue'
+        [
+          'wallWhite',
+          'wallRed',
+          'wallBlue'
+        ].includes(tutorial.step)
       ){
-        // 월드 화면은 보이되 어둡게.
         ctx.save();
 
-        ctx.fillStyle='rgba(20,25,30,.43)';
+        /*
+          물리 정지 + 반투명 회색.
+        */
+        ctx.fillStyle=
+          'rgba(43,47,52,.68)';
+
         ctx.fillRect(
           0,
           0,
@@ -3947,14 +4292,22 @@
           WORLD.height
         );
 
-        if(tutorial.step==='wallWhite'){
+        drawTutorialDemoWall();
+
+        if(
+          tutorial.step===
+          'wallWhite'
+        ){
           tutorialTextBlock(
             '흰색 벽',
-            '일반 벽입니다.\n공이 닿으면 튕겨 나갑니다.'
+            '일반적인 벽입니다.\n공이 닿으면 튕겨 나갑니다.'
           );
         }
 
-        else if(tutorial.step==='wallRed'){
+        else if(
+          tutorial.step===
+          'wallRed'
+        ){
           tutorialTextBlock(
             '빨간색 벽',
             '위험한 벽입니다.\n공이 닿으면 즉시 GAME OVER 됩니다.'
@@ -3964,7 +4317,7 @@
         else{
           tutorialTextBlock(
             '파란색 벽',
-            '점프 벽입니다.\n위나 아래 어디에 닿아도 강하게 튕겨 나갑니다.'
+            '점프 벽입니다.\n위나 아래 어느 쪽에 닿아도\n강하게 튕겨 나갑니다.'
           );
         }
 
@@ -3972,39 +4325,54 @@
       }
     }
 
-    function drawTutorialHomeSpotlight(){
-      if(!tutorial.active)return;
 
+    function drawTutorialHomeSpotlight(){
       if(
+        !tutorial.active ||
         ![
           'homeWorld',
           'homeSkins',
           'homeAchievements'
-        ].includes(tutorial.step)
-      ) return;
+        ].includes(
+          tutorial.step
+        )
+      ){
+        return;
+      }
 
-      const navY=homeNavigationY();
+      const navY=
+        homeNavigationY();
 
       let cx=70;
       let title='WORLD TOUR';
-      let body='도시별 스테이지를\n하나씩 클리어하는 모드입니다.';
+      let body=
+        '도시별 스테이지를 하나씩\n클리어하는 모드입니다.';
 
-      if(tutorial.step==='homeSkins'){
+      if(
+        tutorial.step===
+        'homeSkins'
+      ){
         cx=195;
         title='SKINS';
-        body='공 색상과 트레일,\n무한 모드 시작 맵을 바꿀 수 있습니다.';
+        body=
+          '공 색상과 트레일,\n무한 모드 시작 맵을 바꿀 수 있습니다.';
       }
 
-      if(tutorial.step==='homeAchievements'){
+      if(
+        tutorial.step===
+        'homeAchievements'
+      ){
         cx=320;
         title='ACHIEVEMENTS';
-        body='도시 클리어와 기록 달성으로\n특별한 배지를 얻을 수 있습니다.';
+        body=
+          '도시 클리어와 기록 달성으로\n특별한 배지를 얻을 수 있습니다.';
       }
 
       ctx.save();
 
-      // 어두운 반투명 커버
-      ctx.fillStyle='rgba(27,31,37,.68)';
+      ctx.fillStyle=
+        'rgba(30,33,37,.70)';
+
       ctx.fillRect(
         0,
         0,
@@ -4012,97 +4380,130 @@
         WORLD.height
       );
 
-      // spotlight
-      ctx.globalCompositeOperation='destination-out';
+      /*
+        해당 메뉴 부분만 원형으로 밝게 보이게.
+      */
+      ctx.globalCompositeOperation=
+        'destination-out';
 
       ctx.beginPath();
+
       ctx.arc(
         cx,
-        navY-8,
-        47,
-        0,
-        Math.PI*2
-      );
-      ctx.fill();
-
-      ctx.globalCompositeOperation='source-over';
-
-      // 원 테두리
-      ctx.strokeStyle='rgba(255,255,255,.92)';
-      ctx.lineWidth=2;
-
-      ctx.beginPath();
-      ctx.arc(
-        cx,
-        navY-8,
+        navY-9,
         48,
         0,
         Math.PI*2
       );
+
+      ctx.fill();
+
+      ctx.globalCompositeOperation=
+        'source-over';
+
+      ctx.strokeStyle=
+        'rgba(255,255,255,.95)';
+
+      ctx.lineWidth=2;
+
+      ctx.beginPath();
+
+      ctx.arc(
+        cx,
+        navY-9,
+        49,
+        0,
+        Math.PI*2
+      );
+
       ctx.stroke();
 
       ctx.textAlign='center';
       ctx.textBaseline='middle';
 
       ctx.fillStyle='#FFFFFF';
-      ctx.font='760 16px ui-sans-serif, sans-serif';
+
+      ctx.font=
+        '780 17px ui-sans-serif, sans-serif';
+
       ctx.fillText(
         title,
         WORLD.width/2,
-        315
+        316
       );
 
-      ctx.fillStyle='rgba(255,255,255,.82)';
-      ctx.font='620 11px ui-sans-serif, sans-serif';
+      ctx.fillStyle=
+        'rgba(255,255,255,.84)';
 
-      body.split('\n').forEach(
-        (line,index)=>{
-          ctx.fillText(
-            line,
-            WORLD.width/2,
-            346+index*18
-          );
-        }
-      );
+      ctx.font=
+        '620 11px ui-sans-serif, sans-serif';
 
-      ctx.fillStyle='rgba(255,255,255,.5)';
-      ctx.font='600 9px ui-sans-serif, sans-serif';
+      body
+        .split('\n')
+        .forEach(
+          (line,index)=>{
+            ctx.fillText(
+              line,
+              WORLD.width/2,
+              348+
+              index*18
+            );
+          }
+        );
+
+      ctx.fillStyle=
+        'rgba(255,255,255,.52)';
+
+      ctx.font=
+        '600 9px ui-sans-serif, sans-serif';
 
       ctx.fillText(
-        tutorial.step==='homeAchievements'
-          ? '터치하여 튜토리얼 완료'
+        tutorial.step===
+        'homeAchievements'
+          ? '화면을 터치해 튜토리얼 완료'
           : '화면을 터치해 계속',
         WORLD.width/2,
-        405
+        406
       );
 
       ctx.restore();
     }
 
+
     function updateTutorialFade(dt){
       if(
         !tutorial.active ||
-        tutorial.step!=='fadeToHome'
-      ) return;
+        tutorial.step!==
+          'fadeToHome'
+      ){
+        return;
+      }
 
       tutorial.fadeAlpha=
         Math.min(
           1,
           tutorial.fadeAlpha+
-          dt*1.75
+          dt*1.9
         );
 
-      if(tutorial.fadeAlpha>=1){
+      if(
+        tutorial.fadeAlpha>=1
+      ){
+        /*
+          HOME 초기화 후에도 tutorial state가
+          사라지지 않게 순서가 중요함.
+        */
         prepareHomeIdle();
 
+        tutorial.active=true;
+        tutorial.firstVisit=true;
         tutorial.step='homeWorld';
         tutorial.homeFocus='worldTour';
         tutorial.frozen=true;
+        tutorial.fadeAlpha=0;
 
         game.screen='menu';
         game.phase='homeIdle';
-
-        tutorial.fadeAlpha=0;
 
         canvas.setAttribute(
           'data-tutorial',
@@ -4111,16 +4512,22 @@
       }
     }
 
+
     function drawTutorialFade(){
       if(
         !tutorial.active ||
-        tutorial.step!=='fadeToHome'
-      ) return;
+        tutorial.step!==
+          'fadeToHome'
+      ){
+        return;
+      }
 
       ctx.save();
 
       ctx.fillStyle=
-        `rgba(20,24,29,${tutorial.fadeAlpha})`;
+        `rgba(15,18,22,${
+          tutorial.fadeAlpha
+        })`;
 
       ctx.fillRect(
         0,
@@ -4132,9 +4539,63 @@
       ctx.restore();
     }
 
+
+    /*
+      기존 기본 DRAG A LINE tutorial은
+      이번 tutorial과 완전히 분리.
+    */
     function drawTutorial(){
-      if(tutorial.active)return;
-      if(game.tutorialAlpha<=0||game.phase!=='playing')return;const alpha=game.elapsed<.18?game.elapsed/.18:1;ctx.globalAlpha=game.tutorialAlpha*alpha;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=COLORS.white;ctx.font='700 15px ui-sans-serif, sans-serif';ctx.fillText('DRAG A LINE',WORLD.width/2,420);ctx.fillStyle=COLORS.muted;ctx.font='600 11px ui-sans-serif, sans-serif';ctx.fillText('KEEP RISING',WORLD.width/2,445);ctx.globalAlpha=1;}
+      if(tutorial.active){
+        return;
+      }
+
+      if(
+        game.tutorialAlpha<=0 ||
+        game.phase!=='playing'
+      ){
+        return;
+      }
+
+      const alpha=
+        game.elapsed<.18
+          ?game.elapsed/.18
+          :1;
+
+      ctx.globalAlpha=
+        game.tutorialAlpha*
+        alpha;
+
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+
+      ctx.fillStyle=
+        COLORS.white;
+
+      ctx.font=
+        '700 15px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        'DRAG A LINE',
+        WORLD.width/2,
+        420
+      );
+
+      ctx.fillStyle=
+        COLORS.muted;
+
+      ctx.font=
+        '600 11px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        'KEEP RISING',
+        WORLD.width/2,
+        445
+      );
+
+      ctx.globalAlpha=1;
+    }
+
+
     function drawBanner(){if(!effects.banner)return;const b=effects.banner,alpha=Math.min(1,(b.maxLife-b.life)/.12,b.life/.25);ctx.globalAlpha=alpha;ctx.fillStyle=b.color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='750 13px ui-sans-serif, sans-serif';ctx.fillText(b.text,WORLD.width/2,104);ctx.globalAlpha=1;}
     function drawHud(){ctx.save();ctx.textBaseline='top';ctx.shadowColor='rgba(7,12,17,.48)';ctx.shadowBlur=3;ctx.shadowOffsetY=1;if(game.gameMode==='stage'){ctx.fillStyle='rgba(247,248,250,.8)';ctx.font='650 9px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText('LINES',24,22);ctx.textAlign='right';ctx.fillText('MAP STAR',WORLD.width-24,22);ctx.fillStyle=COLORS.white;ctx.font='720 19px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText(String(metrics.lines),24,38);ctx.textAlign='right';ctx.fillStyle=game.currentStage?.id==='SEOUL_01'?COLORS.finish:metrics.stageStarCollected?COLORS.finish:COLORS.white;ctx.fillText(game.currentStage?.id==='SEOUL_01'?'★ AUTO':metrics.stageStarCollected?'★ 1/1':'☆ 0/1',WORLD.width-24,38);ctx.textAlign='center';ctx.fillStyle='rgba(247,248,250,.94)';ctx.font='720 10px ui-sans-serif, sans-serif';ctx.fillText(game.currentStage.id.replace('_',' '),WORLD.width/2,28);ctx.restore();return;}ctx.fillStyle='rgba(247,248,250,.8)';ctx.font='650 9px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText('SCORE',24,22);ctx.textAlign='right';ctx.fillText('COMBO',WORLD.width-24,22);ctx.fillStyle=COLORS.white;ctx.font='720 22px ui-sans-serif, sans-serif';ctx.textAlign='left';ctx.fillText(String(game.score),24,37);ctx.fillStyle=game.combo>1?COLORS.accent:COLORS.white;ctx.textAlign='right';ctx.fillText(`×${game.combo}`,WORLD.width-24,37);ctx.fillStyle='rgba(247,248,250,.94)';ctx.font='720 10px ui-sans-serif, sans-serif';ctx.textAlign='center';ctx.fillText(INFINITE_PHASES[phaseIndexForId(game.infinitePhase)].label,WORLD.width/2,23);ctx.fillStyle='rgba(247,248,250,.7)';ctx.font='650 8px ui-sans-serif, sans-serif';ctx.fillText(formatAltitude(game.displayAltitude),WORLD.width/2,39);ctx.restore();}
     function drawWorldScene(){if(input.drawing)syncDrawingWorldPoints();const movingObjects=worldState.objects.filter(object=>object.movement),activeStageMeteors=worldState.objects.filter(object=>object.stageMeteor),warningMeteors=worldState.stageMeteors.filter(schedule=>schedule.state==='warning');canvas.setAttribute('data-game-mode',game.gameMode||'');canvas.setAttribute('data-infinite-phase',game.gameMode==='infinite'?game.infinitePhase:'');canvas.setAttribute('data-world-object-types',[...new Set(worldState.objects.map(object=>object.type))].sort().join(','));canvas.setAttribute('data-moving-object-count',String(movingObjects.length));canvas.setAttribute('data-moving-sample',movingObjects.length?`${movingObjects[0].x.toFixed(2)},${movingObjects[0].y.toFixed(2)}`:'');canvas.setAttribute('data-wormhole-count',String(worldState.wormholes.length));canvas.setAttribute('data-wormhole-pairs',String(worldState.wormholePairs.size));canvas.setAttribute('data-stage-meteor-schedules',String(worldState.stageMeteors.length));canvas.setAttribute('data-stage-meteor-active',String(activeStageMeteors.length));canvas.setAttribute('data-stage-meteor-warnings',String(warningMeteors.length));canvas.setAttribute('data-stage-star',game.currentStage?.id==='SEOUL_01'?'auto':metrics.stageStarCollected?'collected':worldState.stageStar?'available':'none');if(game.gameMode==='stage'){if(!responsiveStageBackgroundDrawn)drawCityBackdrop();}else drawInfiniteBackdrop();const sx=effects.shake?randomRange(-effects.shake,effects.shake):0,sy=effects.shake?randomRange(-effects.shake,effects.shake):0;ctx.save();ctx.translate(sx,sy);drawFinish();drawStageMeteorWarnings();drawStructures();drawTrail();if(game.gameMode==='infinite')drawShards();else drawStageStar();drawPlayerLine(game.activeLine);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);drawFragments();drawParticles();if(game.phase!=='dying'&&game.screen!=='stageClear')drawBall(game.phase==='homeStarting'?'#FFFFFF':null);drawFloatingTexts();drawTutorial();ctx.restore();drawTutorialOverlay();drawTutorialFade();if(!game.previewHideHud&&game.phase!=='homeStarting')drawHud();drawBanner();}
@@ -4422,6 +4883,8 @@
       );
 
       ctx.restore();
+
+      drawTutorialHomeSpotlight();
     }
 
     function drawCityPreview(cityId,x,y,w,h,enabled){if(cityId==='seoul'){drawStageImagePreview('SEOUL_GENERAL_DAY',x,y,w,h,enabled,8);return;}if(cityId==='newyork'){drawStageImagePreview('newyork01',x,y,w,h,enabled,8);return;}if(cityId==='tokyo'){drawStageImagePreview('tokyo10',x,y,w,h,enabled,8);return;}ctx.save();roundedRectPath(ctx,x,y,w,h,8);ctx.clip();ctx.globalAlpha=enabled?.72:.34;const gradients={paris:['#796e65','#413b3d'],dubai:['#777166','#343238'],singapore:['#4d726d','#253b3d']},palette=gradients[cityId],gradient=ctx.createLinearGradient(0,y,0,y+h);gradient.addColorStop(0,palette[0]);gradient.addColorStop(1,palette[1]);ctx.fillStyle=gradient;ctx.fillRect(x,y,w,h);ctx.fillStyle='rgba(12,17,22,.72)';if(cityId==='paris'){for(let i=0;i<5;i++){const bx=x+i*w*.22;ctx.fillRect(bx,y+h*.48,w*.2,h);ctx.beginPath();ctx.moveTo(bx,y+h*.48);ctx.lineTo(bx+w*.1,y+h*.25);ctx.lineTo(bx+w*.2,y+h*.48);ctx.fill();}ctx.strokeStyle='rgba(15,18,22,.75)';ctx.beginPath();ctx.moveTo(x+w*.72,y+h);ctx.lineTo(x+w*.82,y+h*.18);ctx.lineTo(x+w*.92,y+h);ctx.stroke();}else if(cityId==='dubai'){ctx.fillRect(x,y+h*.72,w,h);ctx.beginPath();ctx.moveTo(x+w*.45,y+h);ctx.lineTo(x+w*.53,y+h*.02);ctx.lineTo(x+w*.61,y+h);ctx.fill();}else{ctx.fillRect(x,y+h*.68,w,h);for(const px of[.24,.72]){ctx.fillRect(x+w*px-1,y+h*.32,3,h*.48);ctx.beginPath();ctx.arc(x+w*px,y+h*.3,8,0,Math.PI*2);ctx.fill();}}ctx.restore();drawRoundedRect(x,y,w,h,8,null,enabled?'rgba(255,255,255,.14)':'rgba(255,255,255,.06)',1);}
@@ -7871,6 +8334,10 @@
       startFirstVisitTutorial();
     }else{
       prepareHomeIdle();
+    if(tutorialShouldStart()){
+      startFirstVisitTutorial();
+    }
+
     }
 
     applyLocalPreviewQuery();
@@ -7879,7 +8346,14 @@
     // Game loop
     // =========================================================================
     let previousTimestamp=performance.now(),accumulator=0;
-    function gameLoop(timestamp){const frameTime=Math.min((timestamp-previousTimestamp)/1000,.05);previousTimestamp=timestamp;game.uiTime+=frameTime;updateDesktopDrawingAssist();if(game.screen==='playing'){accumulator+=frameTime;while(accumulator>=PHYSICS.fixedStep){updatePhysics(PHYSICS.fixedStep);accumulator-=PHYSICS.fixedStep;}}else accumulator=0;updateTransitions(frameTime);updateTutorialFade(frameTime);updateEffects(frameTime);render();requestAnimationFrame(gameLoop);}
+    function gameLoop(timestamp){const frameTime=Math.min((timestamp-previousTimestamp)/1000,.05);previousTimestamp=timestamp;game.uiTime+=frameTime;updateDesktopDrawingAssist();if(
+      game.screen==='playing' &&
+      !(
+        tutorial.active &&
+        tutorial.frozen
+      )
+    ){
+      accumulator+=frameTime;while(accumulator>=PHYSICS.fixedStep){updatePhysics(PHYSICS.fixedStep);accumulator-=PHYSICS.fixedStep;}}else accumulator=0;updateTransitions(frameTime);updateTutorialFade(frameTime);updateEffects(frameTime);render();requestAnimationFrame(gameLoop);}
     requestAnimationFrame(gameLoop);
   </script>
 </body>
