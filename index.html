@@ -755,6 +755,130 @@
     const storedInfiniteMap=safeGet('bounce_infinite_map',''),appearance={ball:validSkinId(safeGet('bounce_ball_skin','white'))?safeGet('bounce_ball_skin','white'):'white',trail:validSkinId(safeGet('bounce_trail_skin','white'))?safeGet('bounce_trail_skin','white'):'white',infiniteMap:storedInfiniteMap&&isInfiniteMapUnlocked(storedInfiniteMap)?storedInfiniteMap:'city'};
     function skinColor(id){return SKIN_SWATCHES.find(swatch=>swatch.id===id)?.color||SKIN_SWATCHES[0].color;}
     function selectedInfiniteMap(){return isInfiniteMapUnlocked(appearance.infiniteMap)?appearance.infiniteMap:'city';}
+
+    // =====================================================
+    // FIRST INFINITE PLAY HINT
+    // =====================================================
+
+    const FIRST_INFINITE_HINT_KEY =
+      'bouncer_first_infinite_hint_seen_v1';
+
+    const firstInfiniteHint = {
+      active:false,
+      alpha:0,
+      disappearing:false
+    };
+
+    function shouldShowFirstInfiniteHint(){
+      return (
+        safeGet(
+          FIRST_INFINITE_HINT_KEY,
+          '0'
+        ) !== '1'
+      );
+    }
+
+    function showFirstInfiniteHint(){
+
+      if(
+        !shouldShowFirstInfiniteHint()
+      ){
+        return;
+      }
+
+      firstInfiniteHint.active=true;
+      firstInfiniteHint.alpha=1;
+      firstInfiniteHint.disappearing=false;
+    }
+
+    function hideFirstInfiniteHint(){
+
+      if(
+        !firstInfiniteHint.active
+      ){
+        return;
+      }
+
+      firstInfiniteHint.disappearing=true;
+
+      safeSet(
+        FIRST_INFINITE_HINT_KEY,
+        '1'
+      );
+    }
+
+    function updateFirstInfiniteHint(dt){
+
+      if(
+        !firstInfiniteHint.active
+      ){
+        return;
+      }
+
+      if(
+        firstInfiniteHint.disappearing
+      ){
+
+        firstInfiniteHint.alpha =
+          Math.max(
+            0,
+            firstInfiniteHint.alpha -
+            dt * 3.8
+          );
+
+        if(
+          firstInfiniteHint.alpha<=0
+        ){
+          firstInfiniteHint.active=false;
+          firstInfiniteHint.alpha=0;
+        }
+      }
+    }
+
+    function drawFirstInfiniteHint(){
+
+      if(
+        !firstInfiniteHint.active ||
+        game.gameMode!=='infinite' ||
+        game.screen!=='playing'
+      ){
+        return;
+      }
+
+      ctx.save();
+
+      ctx.globalAlpha =
+        firstInfiniteHint.alpha;
+
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+
+      ctx.fillStyle='#FFFFFF';
+
+      ctx.shadowColor=
+        'rgba(18,42,65,.32)';
+
+      ctx.shadowBlur=5;
+
+      ctx.font=
+        '750 15px ui-sans-serif, sans-serif';
+
+      ctx.fillText(
+        '로고의 원 밑에 선을 그어',
+        WORLD.width/2,
+        590
+      );
+
+      ctx.fillText(
+        '떨어지는 원을 튕겨보세요',
+        WORLD.width/2,
+        614
+      );
+
+      ctx.restore();
+    }
+
+
     const game={ screen:'menu',phase:'homeIdle',gameMode:'infinite',currentCity:'seoul',currentStageIndex:0,currentStage:null,score:0,combo:1,best:loadBestScore(),elapsed:0,resultTime:0,transitionTimer:0,homeTransition:0,homeTransitionDuration:HOME_LAYOUT.transitionDuration,homeLaunch:false,skinTab:'balls',activeLine:null,lineSerial:0,tutorialAlpha:1,hasEverDrawn:false,lineDrawnThisRun:false,unlockedNotices:new Set(),resultStars:0,uiTime:0,menuEnteredAt:0,lastDeathReason:'FALL',selfTests:null,altitude:0,displayAltitude:0,highestCameraY:0,totalClimbDistance:0,infinitePhase:'sky',phaseAdvanceCooldown:0,previewHideHud:false };
 
     const tutorial = {
@@ -1342,6 +1466,71 @@
     }
 
 
+
+    function drawCurrentTutorialWall(){
+
+      if(
+        !tutorial.active ||
+        !tutorial.wall
+      ){
+        return;
+      }
+
+      const wall =
+        tutorial.wall;
+
+      const type =
+        wall.visualType ||
+        'wall';
+
+      ctx.save();
+
+      /*
+        벽은 외곽선 없이
+        한 가지 단색으로만 표시.
+      */
+      if(type==='deathwall'){
+
+        ctx.fillStyle =
+          COLORS.danger;
+
+      }else if(type==='jumpwall'){
+
+        ctx.fillStyle =
+          COLORS.accent;
+
+      }else{
+
+        ctx.fillStyle =
+          '#FFFFFF';
+      }
+
+      const radius =
+        Math.min(
+          wall.h / 2,
+          8
+        );
+
+      roundedRectPath(
+        ctx,
+        wall.x,
+        wall.y,
+        wall.w,
+        wall.h,
+        radius
+      );
+
+      ctx.fill();
+
+      ctx.restore();
+
+      canvas.setAttribute(
+        'data-tutorial-wall-type',
+        type
+      );
+    }
+
+
     function setTutorialWallType(type){
       if(!tutorial.wall){
         tutorial.wall={
@@ -1464,7 +1653,27 @@
     }
 
 
-    function startInfinite(){ audio.ui();game.gameMode='infinite';game.currentStage=null;game.screen='playing';resetRuntime();ball.vx=Math.random()<.5?-22:22;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld(); }
+    function startInfinite(){
+      audio.ui();
+
+      game.gameMode='infinite';
+      game.currentStage=null;
+      game.screen='playing';
+
+      resetRuntime();
+
+      ball.vx=
+        Math.random()<.5
+          ?-22
+          :22;
+
+      worldState.theme=
+        `infinite:${selectedInfiniteMap()}`;
+
+      setupInfiniteWorld();
+
+      showFirstInfiniteHint();
+    }
     function prepareHomeIdle(){game.gameMode='infinite';game.currentStage=null;resetRuntime();game.screen='menu';game.phase='homeIdle';game.menuEnteredAt=game.uiTime;ball.x=WORLD.width/2;ball.y=HOME_LAYOUT.logoY;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld();canvas.setAttribute('data-home-state','HOME_IDLE');}
     function launchInfiniteFromHome(){game.screen='playing';game.phase='homeStarting';game.homeLaunch=true;game.homeTransition=HOME_LAYOUT.transitionDuration;game.homeTransitionDuration=HOME_LAYOUT.transitionDuration;game.tutorialAlpha=0;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;canvas.setAttribute('data-home-state','STARTING');audio.ui();}
     function startStage(cityId,index){ const stage=STAGES[cityId]&&STAGES[cityId][index];if(!stage)return;audio.ui();game.gameMode='stage';game.currentCity=cityId;game.currentStageIndex=index;game.currentStage=stage;game.screen='playing';resetRuntime();ball.vx=Number.isFinite(stage.startVx)?stage.startVx:22;setupStageWorld(stage); }
@@ -1710,7 +1919,14 @@
     function movePointer(event){if(input.state!=='drawing'||event.pointerId!==input.pointerId){if(!input.drawing&&event.target===canvas)input.hoverAction=findHitArea(pointerToScreen(event))?.action||null;return;}event.preventDefault();updateDrawingEndpoint(event);}
     function commitCurrentDrawing(){
       if(input.state!=='drawing'||!input.start||!input.end)return false;syncDrawingWorldPoints();const fromHome=game.screen==='menu'&&game.phase==='homeIdle',start={...input.start},end={...input.end},length=Math.hypot(end.x-start.x,end.y-start.y),capturedId=input.pointerId;input.state='committing';input.pointerId=null;input.pointerType=null;input.drawing=false;input.start=null;input.end=null;input.startScreen=null;input.endScreen=null;input.lastRaw=null;input.lastMoveAt=0;input.captureLost=false;
-      if(length>=LINE_RULES.minLength){game.activeLine={id:++game.lineSerial,a:start,b:end,length,bornAt:game.elapsed};game.hasEverDrawn=true;game.lineDrawnThisRun=true;metrics.lines++;canvas.setAttribute('data-last-committed-line',`${start.x.toFixed(2)},${start.y.toFixed(2)}:${end.x.toFixed(2)},${end.y.toFixed(2)}:${length.toFixed(2)}`);}
+      if(length>=LINE_RULES.minLength){game.activeLine={id:++game.lineSerial,a:start,b:end,length,bornAt:game.elapsed};game.hasEverDrawn=true;game.lineDrawnThisRun=true;metrics.lines++;
+
+        if(
+          game.gameMode==='infinite' &&
+          firstInfiniteHint.active
+        ){
+          hideFirstInfiniteHint();
+        }canvas.setAttribute('data-last-committed-line',`${start.x.toFixed(2)},${start.y.toFixed(2)}:${end.x.toFixed(2)},${end.y.toFixed(2)}:${length.toFixed(2)}`);}
       releasePointerCapture(capturedId);input.state='idle';if(fromHome&&length>=LINE_RULES.minLength)launchInfiniteFromHome();return length>=LINE_RULES.minLength;
     }
     function finishPointer(event){if(input.state!=='drawing'||event.pointerId!==input.pointerId)return;event.preventDefault();updateDrawingEndpoint(event);commitCurrentDrawing();}
@@ -4566,6 +4782,9 @@
 
 
     function drawTutorialOverlay(){
+      drawCurrentTutorialWall();
+
+
       if(!tutorial.active){
         return;
       }
@@ -6624,7 +6843,9 @@
     function render(){
       activateViewportForScreen();drawResponsiveViewportBackdrop();ctx.save();applyLogicalViewportTransform();ui.hitAreas.length=0;
       const worldScreens=['playing','infiniteResult','stageFailed','stageClear'],resultScreen=['infiniteResult','stageFailed','stageClear'].includes(game.screen);if(worldScreens.includes(game.screen)){drawWorldScene();if(game.phase==='homeStarting')drawHomeTransitionOverlay();}else if(game.screen==='menu'){drawMainMenu();drawTutorialHomeSpotlight();}else if(game.screen==='skinSelect')drawSkinSelect();else if(game.screen==='achievements')drawAchievements();else if(game.screen==='worldSelect')drawWorldSelect();else if(game.screen==='stageSelect')drawStageSelect();else if(game.screen==='settings')drawSettings();ctx.restore();
-      canvas.setAttribute('data-responsive-result-cover',resultScreen?'true':'false');if(resultScreen){drawResponsiveResultCover();ctx.save();applyLogicalViewportTransform();if(game.screen==='infiniteResult')drawInfiniteResult(false);else if(game.screen==='stageFailed')drawStageFailed(false);else drawStageClear(false);ctx.restore();}if(effects.achievementToast){ctx.save();applyLogicalViewportTransform();drawAchievementToast();ctx.restore();}updateAriaLabel();
+      canvas.setAttribute('data-responsive-result-cover',resultScreen?'true':'false');if(resultScreen){drawResponsiveResultCover();ctx.save();applyLogicalViewportTransform();if(game.screen==='infiniteResult')drawInfiniteResult(false);else if(game.screen==='stageFailed')drawStageFailed(false);else drawStageClear(false);ctx.restore();}if(effects.achievementToast){ctx.save();applyLogicalViewportTransform();drawAchievementToast();
+      drawFirstInfiniteHint();
+ctx.restore();}updateAriaLabel();
     }
 
     // =========================================================================
@@ -6666,89 +6887,13 @@
 
     // v2 키를 사용해서 기존 구형 튜토리얼을 본 기기에서도
     // 새 튜토리얼을 한 번 다시 확인할 수 있게 한다.
-    const FIRST_RUN_TUTORIAL_KEY=
-      'bounce_first_tutorial_complete_v2';
+    
 
 
-    const FIRST_RUN_TUTORIAL_STEPS=
-      Object.freeze([
-
-        Object.freeze({
-          id:'normalWall',
-          type:'wall',
-          x:0,
-          y:-220,
-          w:225,
-          h:18,
-
-          title:'흰색 벽',
-
-          description:[
-            '흰색 벽은 기본 벽입니다.',
-            '부딪히면 일반적인 탄성으로 튕겨 나갑니다.'
-          ]
-        }),
+    
 
 
-        Object.freeze({
-          id:'deathWall',
-          type:'deathwall',
-          x:225,
-          y:-610,
-          w:165,
-          h:22,
-
-          title:'빨간 벽',
-
-          description:[
-            '빨간 벽은 위험한 벽입니다.',
-            '공이 닿으면 즉시 게임 오버입니다.'
-          ]
-        }),
-
-
-        Object.freeze({
-          id:'jumpWall',
-          type:'jumpwall',
-          x:0,
-          y:-1010,
-          w:220,
-          h:16,
-
-          title:'파란 벽',
-
-          description:[
-            '파란 벽은 점프 벽입니다.',
-            '위·아래 어느 방향에서 닿아도',
-            '공이 강하게 튕겨 나갑니다.'
-          ]
-        })
-      ]);
-
-
-    const firstRunTutorial={
-      enabled:
-        safeGet(
-          FIRST_RUN_TUTORIAL_KEY,
-          '0'
-        )!=='1',
-
-      state:
-        safeGet(
-          FIRST_RUN_TUTORIAL_KEY,
-          '0'
-        )!=='1'
-          ?'intro'
-          :'done',
-
-      nextStep:0,
-      currentStep:-1,
-
-      finishTimer:0,
-      fade:0,
-
-      objects:new Map()
-    };
+    
 
 
     // 테스트할 때 콘솔에서
@@ -6843,668 +6988,20 @@
     // Intro
     // =========================================================================
 
-    function advanceFirstRunTutorialIntro(){
-      if(
-        !firstRunTutorial.enabled ||
-        firstRunTutorial.state!=='intro'
-      ){
-        return;
-      }
-
-      firstRunTutorial.state=
-        'homePrompt';
-
-      audio.ui();
-
-      canvas.setAttribute(
-        'data-tutorial',
-        'homePrompt'
-      );
-    }
 
 
     // =========================================================================
     // Start actual tutorial
     // =========================================================================
 
-    function startFirstRunTutorialFromHome(){
-      firstRunTutorial.state='running';
-
-      firstRunTutorial.nextStep=0;
-      firstRunTutorial.currentStep=-1;
-
-      firstRunTutorial.finishTimer=0;
-      firstRunTutorial.fade=0;
-
-      game.gameMode='tutorial';
-      game.currentStage=null;
-
-      game.screen='playing';
-      game.phase='homeStarting';
-
-      game.homeLaunch=true;
-
-      game.homeTransition=
-        HOME_LAYOUT.transitionDuration;
-
-      game.homeTransitionDuration=
-        HOME_LAYOUT.transitionDuration;
-
-      // 기존 DRAG A LINE 글씨 제거
-      game.tutorialAlpha=0;
-
-      game.hasEverDrawn=true;
-      game.lineDrawnThisRun=true;
-
-      game.previewHideHud=true;
-
-      game.altitude=0;
-      game.displayAltitude=0;
-
-      game.totalClimbDistance=0;
-      game.highestCameraY=0;
-
-      game.infinitePhase='sky';
-
-      ball.previousX=ball.x;
-      ball.previousY=ball.y;
-
-      ball.vx=0;
-      ball.vy=0;
-
-      ball.wormholeCooldown=0;
-
-      camera.y=0;
-      camera.targetY=0;
-
-      setupFirstRunTutorialWorld();
-
-      canvas.setAttribute(
-        'data-tutorial',
-        'running'
-      );
-    }
 
 
     // =========================================================================
     // Wall pause
     // =========================================================================
 
-    function pauseFirstRunTutorial(
-      stepIndex
-    ){
-      const step=
-        FIRST_RUN_TUTORIAL_STEPS[
-          stepIndex
-        ];
 
-      if(!step){
-        return;
-      }
 
-      firstRunTutorial.state='pause';
-
-      firstRunTutorial.currentStep=
-        stepIndex;
-
-      game.phase='tutorialPause';
-
-      game.activeLine=null;
-
-      abortDrawing();
-
-      canvas.setAttribute(
-        'data-tutorial',
-        `pause:${step.id}`
-      );
-
-      audio.ui();
-    }
-
-
-    function updateFirstRunTutorial(dt){
-
-      /*
-        OLD TUTORIAL ENGINE DISABLED.
-
-        홈의 기존 선 긋기 안내만 살리고
-        그 뒤의 벽 설명/페이드/홈 가이드는
-        새 tutorial 시스템에서만 처리한다.
-      */
-      if(
-        firstRunTutorial.state!=='homePrompt'
-      ){
-        return;
-      }
-
-      // -----------------------------------------------------
-      // 장애물이 위에서 화면 안으로 들어오면
-      // 즉시 게임을 정지하고 설명.
-      // -----------------------------------------------------
-
-      if(
-        firstRunTutorial.enabled &&
-        firstRunTutorial.state==='running' &&
-        game.gameMode==='tutorial' &&
-        game.screen==='playing' &&
-        game.phase==='playing'
-      ){
-        const step=
-          FIRST_RUN_TUTORIAL_STEPS[
-            firstRunTutorial.nextStep
-          ];
-
-        if(step){
-          const object=
-            firstRunTutorial.objects.get(
-              step.id
-            );
-
-          if(object){
-            const screenY=
-              worldToScreenY(
-                object.y
-              );
-
-            if(
-              screenY>=105 &&
-              screenY<=275
-            ){
-              pauseFirstRunTutorial(
-                firstRunTutorial.nextStep
-              );
-            }
-          }
-        }
-      }
-
-
-      // -----------------------------------------------------
-      // 모두 설명했으면 화면을 천천히 어둡게
-      // -----------------------------------------------------
-
-      if(
-        firstRunTutorial.state==='finish'
-      ){
-        firstRunTutorial.finishTimer+=dt;
-
-        const delay=.18;
-        const fadeDuration=.72;
-
-        firstRunTutorial.fade=
-          clamp(
-            (
-              firstRunTutorial.finishTimer-
-              delay
-            )/
-            fadeDuration,
-            0,
-            1
-          );
-
-        if(
-          firstRunTutorial.fade>=1
-        ){
-          safeSet(
-            FIRST_RUN_TUTORIAL_KEY,
-            '1'
-          );
-
-          firstRunTutorial.enabled=false;
-          firstRunTutorial.state='returning';
-          firstRunTutorial.fade=1;
-
-
-    // =====================================================
-    // BOUNCER FIRST-VISIT + TUTORIAL CHECKPOINT V3
-    // =====================================================
-
-    /*
-      브라우저의 전체 방문 기록 자체는
-      웹 페이지에서 읽을 수 없다.
-
-      대신 BOUNCER가 자기 사이트에서 남긴
-      localStorage를 기준으로 이전 방문 여부를 판단한다.
-
-      첫 접속 순간 바로 visit key를 기록하므로
-      튜토리얼 도중 새로고침해도 다음 접속에는
-      자동으로 다시 튜토리얼이 뜨지 않는다.
-    */
-
-    const BOUNCER_VISIT_KEY=
-      'bounce_has_visited_v1';
-
-    const BOUNCER_FORCE_TUTORIAL_SESSION_KEY=
-      'bounce_force_tutorial_once_v1';
-
-
-    function hasStoredBouncerVisit(){
-
-      try{
-
-        for(
-          let index=0;
-          index<localStorage.length;
-          index++
-        ){
-          const key=
-            localStorage.key(index)||'';
-
-          if(
-            key.startsWith('bounce_') &&
-            key!==BOUNCER_VISIT_KEY
-          ){
-            return true;
-          }
-        }
-
-      }catch(error){}
-
-      return(
-        safeGet(
-          BOUNCER_VISIT_KEY,
-          '0'
-        )==='1'
-      );
-    }
-
-
-    let forceTutorialOnce=false;
-
-    try{
-
-      forceTutorialOnce=
-        sessionStorage.getItem(
-          BOUNCER_FORCE_TUTORIAL_SESSION_KEY
-        )==='1';
-
-      if(forceTutorialOnce){
-
-        sessionStorage.removeItem(
-          BOUNCER_FORCE_TUTORIAL_SESSION_KEY
-        );
-      }
-
-    }catch(error){}
-
-
-    const bouncerHadPriorVisit=
-      !forceTutorialOnce &&
-      hasStoredBouncerVisit();
-
-
-    // 현재 접속은 즉시 방문 처리
-    safeSet(
-      BOUNCER_VISIT_KEY,
-      '1'
-    );
-
-
-    if(bouncerHadPriorVisit){
-
-      // 기존 사용자:
-      // 튜토리얼을 절대 자동 시작하지 않는다.
-      safeSet(
-        FIRST_RUN_TUTORIAL_KEY,
-        '1'
-      );
-
-      firstRunTutorial.enabled=false;
-
-      firstRunTutorial.state=
-        'done';
-
-      firstRunTutorial.nextStep=0;
-      firstRunTutorial.currentStep=-1;
-
-      firstRunTutorial.finishTimer=0;
-      firstRunTutorial.fade=0;
-
-    }else{
-
-      // 완전히 새로운 사용자
-      safeSet(
-        FIRST_RUN_TUTORIAL_KEY,
-        '0'
-      );
-
-      firstRunTutorial.enabled=true;
-
-      firstRunTutorial.state=
-        'intro';
-
-      firstRunTutorial.nextStep=0;
-      firstRunTutorial.currentStep=-1;
-
-      firstRunTutorial.finishTimer=0;
-      firstRunTutorial.fade=0;
-    }
-
-
-    /*
-      개발/테스트용.
-
-      브라우저 콘솔에서
-
-      BOUNCER_RESET_TUTORIAL()
-
-      입력하면 딱 한 번
-      새 사용자처럼 튜토리얼을 다시 볼 수 있다.
-    */
-    window.BOUNCER_RESET_TUTORIAL=
-      function(){
-
-        try{
-
-          sessionStorage.setItem(
-            BOUNCER_FORCE_TUTORIAL_SESSION_KEY,
-            '1'
-          );
-
-        }catch(error){}
-
-        safeSet(
-          FIRST_RUN_TUTORIAL_KEY,
-          '0'
-        );
-
-        location.reload();
-      };
-
-
-    // =====================================================
-    // Tutorial progress checkpoint
-    // =====================================================
-
-    function currentTutorialCheckpointIndex(){
-
-      /*
-        현재 설명창에서 죽을 일은 거의 없지만,
-        혹시 pause 상태라면 현재 단계 그대로.
-      */
-      if(
-        firstRunTutorial.currentStep>=0
-      ){
-        return clamp(
-          firstRunTutorial.currentStep,
-          0,
-          FIRST_RUN_TUTORIAL_STEPS.length-1
-        );
-      }
-
-
-      /*
-        설명을 보고 진행 중이면
-        nextStep은 다음 설명을 가리킨다.
-
-        따라서 nextStep - 1이
-        마지막으로 배운 체크포인트다.
-
-        예:
-        WHITE 설명 후 진행 -> nextStep 1 -> WHITE(0)
-        RED 설명 후 진행   -> nextStep 2 -> RED(1)
-        BLUE 설명 후 진행  -> nextStep 3 -> BLUE(2)
-      */
-      if(
-        firstRunTutorial.nextStep>0
-      ){
-        return clamp(
-          firstRunTutorial.nextStep-1,
-          0,
-          FIRST_RUN_TUTORIAL_STEPS.length-1
-        );
-      }
-
-
-      // 아직 첫 벽까지 도착하지 못한 경우
-      return -1;
-    }
-
-
-    function restoreTutorialCheckpoint(
-      stepIndex
-    ){
-
-      abortDrawing();
-
-      /*
-        아직 첫 벽 설명 전 사망:
-        로고 밑 선 긋기 부분으로 돌아간다.
-      */
-      if(stepIndex<0){
-
-        prepareHomeIdle();
-
-        firstRunTutorial.enabled=true;
-
-        firstRunTutorial.state=
-          'homePrompt';
-
-        firstRunTutorial.nextStep=0;
-        firstRunTutorial.currentStep=-1;
-
-        firstRunTutorial.finishTimer=0;
-        firstRunTutorial.fade=0;
-
-        canvas.setAttribute(
-          'data-tutorial',
-          'home-checkpoint'
-        );
-
-        return;
-      }
-
-
-      /*
-        현재 튜토리얼 월드를 깨끗하게 다시 만든다.
-      */
-      resetRuntime();
-
-      game.gameMode=
-        'tutorial';
-
-      game.currentStage=null;
-
-      game.screen=
-        'playing';
-
-      game.phase=
-        'playing';
-
-      game.homeLaunch=false;
-
-      firstRunTutorial.enabled=true;
-
-      firstRunTutorial.state=
-        'running';
-
-      firstRunTutorial.nextStep=
-        stepIndex;
-
-      firstRunTutorial.currentStep=-1;
-
-      firstRunTutorial.finishTimer=0;
-      firstRunTutorial.fade=0;
-
-
-      setupFirstRunTutorialWorld();
-
-
-      const step=
-        FIRST_RUN_TUTORIAL_STEPS[
-          stepIndex
-        ];
-
-      const object=
-        firstRunTutorial.objects.get(
-          step.id
-        );
-
-
-      /*
-        설명할 벽을 화면 상단 약 190px에 배치.
-      */
-      const objectWorldY=
-        object
-          ?object.y
-          :step.y;
-
-      camera.y=
-        objectWorldY-190;
-
-      camera.targetY=
-        camera.y;
-
-
-      /*
-        공은 해당 벽보다 충분히 아래에 재배치.
-
-        벽이 왼쪽이면 공은 오른쪽,
-        벽이 오른쪽이면 공은 왼쪽에서 시작해서
-        다시 진행하기 편하게 한다.
-      */
-      const centerX=
-        step.x+
-        step.w/2;
-
-      ball.x=
-        centerX<
-        WORLD.width/2
-          ?300
-          :90;
-
-      ball.y=
-        camera.y+535;
-
-      ball.previousX=
-        ball.x;
-
-      ball.previousY=
-        ball.y;
-
-      ball.vx=
-        ball.x>centerX
-          ?-22
-          :22;
-
-      ball.vy=
-        -110;
-
-      ball.wormholeCooldown=0;
-
-
-      game.activeLine=null;
-
-      effects.trail.length=0;
-
-
-      /*
-        원래 튜토리얼의 pause 함수를 그대로 사용.
-        따라서 벽 설명 UI와
-        "진행하려면 선을 그으시오" 동작도 유지된다.
-      */
-      pauseFirstRunTutorial(
-        stepIndex
-      );
-
-
-      canvas.setAttribute(
-        'data-tutorial-checkpoint',
-        step.id
-      );
-    }
-
-
-    /*
-      일반 게임의 endRun은 그대로 보존하고
-      튜토리얼에서만 체크포인트 복귀로 바꾼다.
-    */
-    const normalEndRunBeforeTutorialCheckpoint=
-      endRun;
-
-
-    endRun=
-      function(
-        reason='FALL',
-        x=ball.x,
-        y=ball.y
-      ){
-
-        if(
-          game.gameMode==='tutorial' &&
-          firstRunTutorial.enabled &&
-          (
-            firstRunTutorial.state==='running' ||
-            firstRunTutorial.state==='pause'
-          )
-        ){
-
-          const checkpoint=
-            currentTutorialCheckpointIndex();
-
-          audio.death();
-
-          restoreTutorialCheckpoint(
-            checkpoint
-          );
-
-          return;
-        }
-
-
-        return normalEndRunBeforeTutorialCheckpoint(
-          reason,
-          x,
-          y
-        );
-      };
-
-
-          prepareHomeIdle();
-
-          game.tutorialAlpha=0;
-
-          canvas.setAttribute(
-            'data-tutorial',
-            'complete'
-          );
-        }
-      }
-
-      else if(
-        firstRunTutorial.state===
-          'returning'
-      ){
-        firstRunTutorial.fade=
-          Math.max(
-            0,
-            firstRunTutorial.fade-
-              dt/.55
-          );
-
-        if(
-          firstRunTutorial.fade<=0
-        ){
-          /*
-            게임 조작 튜토리얼 종료 후
-            홈 메뉴 기능 설명으로 이동.
-          */
-          firstRunTutorial.state='homeGuide';
-          firstRunTutorial.enabled=true;
-          firstRunTutorial.homeGuideIndex=0;
-          firstRunTutorial.fade=0;
-
-          prepareHomeIdle();
-
-          game.tutorialAlpha=0;
-
-          canvas.setAttribute(
-            'data-tutorial',
-            'home-guide:world-tour'
-          );
-        }
-      }
-    }
 
 
     // =========================================================================
@@ -7512,85 +7009,10 @@
     // =========================================================================
 
 
-    function drawTutorialIntroOverlay(){
-      return;
-    }
 
 
-    function drawTutorialHomePrompt(){
-      if(
-        game.screen!=='menu'
-      ){
-        return;
-      }
-
-      const splitY=
-        tutorialHomeSplitY();
-
-      ctx.save();
-
-      /*
-        IMPORTANT
-        회색/검정 오버레이 없음.
-        원래 BOUNCER 홈 배경을 그대로 보여준다.
-      */
-
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-
-      ctx.shadowColor=
-        'rgba(20,40,60,.24)';
-
-      ctx.shadowBlur=5;
-
-      ctx.shadowOffsetY=1;
 
 
-      ctx.fillStyle=
-        '#FFFFFF';
-
-      ctx.font=
-        '750 15px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '로고의 원 밑에 선을 그어',
-        WORLD.width/2,
-        splitY+69
-      );
-
-      ctx.fillText(
-        '떨어지는 원을 튕겨보세요',
-        WORLD.width/2,
-        splitY+91
-      );
-
-
-      ctx.shadowBlur=3;
-
-      ctx.fillStyle=
-        'rgba(255,255,255,.70)';
-
-      ctx.font=
-        '600 9px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '아래 영역에서 좌우로 스와이프',
-        WORLD.width/2,
-        splitY+121
-      );
-
-      ctx.restore();
-
-      canvas.setAttribute(
-        'data-tutorial-home-overlay',
-        'none'
-      );
-    }
-
-
-    function drawTutorialPauseOverlay(){
-      return;
-    }
 
 
     // =========================================================================
@@ -7637,45 +7059,10 @@
       ]);
 
 
-    function currentHomeTutorialGuideStep(){
-      return(
-        HOME_TUTORIAL_GUIDE_STEPS[
-          clamp(
-            firstRunTutorial.homeGuideIndex||0,
-            0,
-            HOME_TUTORIAL_GUIDE_STEPS.length-1
-          )
-        ]
-      );
-    }
 
 
-    function drawTutorialHomeGuideOverlay(){
-      return;
-    }
 
 
-    function drawFirstRunTutorialOverlay(){
-
-      /*
-        LEGACY TUTORIAL VISUALS DISABLED
-
-        예전 튜토리얼에서 남기는 것은
-        오직 HOME의
-        "로고의 원 밑에 선을 그어
-         떨어지는 원을 튕겨보세요"
-        화면뿐이다.
-
-        벽 설명 / 페이드 / HOME GUIDE 등은
-        새 tutorial 시스템만 렌더링한다.
-      */
-
-      if(
-        firstRunTutorial.state==='homePrompt'
-      ){
-        drawTutorialHomePrompt();
-      }
-    }
 
 
     // =========================================================================
