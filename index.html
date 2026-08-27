@@ -6964,6 +6964,19 @@
 
     function updateFirstRunTutorial(dt){
 
+      /*
+        OLD TUTORIAL ENGINE DISABLED.
+
+        홈의 기존 선 긋기 안내만 살리고
+        그 뒤의 벽 설명/페이드/홈 가이드는
+        새 tutorial 시스템에서만 처리한다.
+      */
+      if(
+        firstRunTutorial.state!=='homePrompt'
+      ){
+        return;
+      }
+
       // -----------------------------------------------------
       // 장애물이 위에서 화면 안으로 들어오면
       // 즉시 게임을 정지하고 설명.
@@ -7500,122 +7513,7 @@
 
 
     function drawTutorialIntroOverlay(){
-      ctx.save();
-
-      /*
-        HOME 화면은 이미 아래에 렌더링되어 있음.
-        그 위에 반투명 회색만 덮어서
-        로고/배경이 은은하게 보이게 한다.
-      */
-      ctx.fillStyle=
-        'rgba(70,74,79,.72)';
-
-      ctx.fillRect(
-        0,
-        0,
-        WORLD.width,
-        WORLD.height
-      );
-
-
-      // 화면 중앙에 아주 약한 집중 영역
-      const glow=
-        ctx.createRadialGradient(
-          WORLD.width/2,
-          380,
-          20,
-          WORLD.width/2,
-          380,
-          230
-        );
-
-      glow.addColorStop(
-        0,
-        'rgba(255,255,255,.035)'
-      );
-
-      glow.addColorStop(
-        1,
-        'rgba(255,255,255,0)'
-      );
-
-      ctx.fillStyle=glow;
-
-      ctx.fillRect(
-        0,
-        120,
-        WORLD.width,
-        520
-      );
-
-
-      ctx.textAlign='center';
-      ctx.textBaseline='middle';
-
-
-      ctx.fillStyle='#FFFFFF';
-
-      ctx.font=
-        '760 21px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '안녕하세요',
-        WORLD.width/2,
-        334
-      );
-
-
-      ctx.font=
-        '700 15px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '지금부터 BOUNCER의',
-        WORLD.width/2,
-        378
-      );
-
-      ctx.fillText(
-        '튜토리얼을 시작할게요',
-        WORLD.width/2,
-        401
-      );
-
-
-      ctx.fillStyle=
-        'rgba(255,255,255,.66)';
-
-      ctx.font=
-        '600 10px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '화면을 클릭하여 넘어가기',
-        WORLD.width/2,
-        462
-      );
-
-
-      // 작은 클릭 표시
-      const pulse=
-        .58+
-        Math.sin(game.uiTime*3.4)*.14;
-
-      ctx.globalAlpha=pulse;
-
-      ctx.fillStyle='#FFFFFF';
-
-      ctx.beginPath();
-
-      ctx.arc(
-        WORLD.width/2,
-        489,
-        2.2,
-        0,
-        Math.PI*2
-      );
-
-      ctx.fill();
-
-      ctx.restore();
+      return;
     }
 
 
@@ -7691,225 +7589,7 @@
 
 
     function drawTutorialPauseOverlay(){
-      const step=
-        FIRST_RUN_TUTORIAL_STEPS[
-          firstRunTutorial.currentStep
-        ];
-
-      if(!step){
-        return;
-      }
-
-      const object=
-        firstRunTutorial.objects.get(
-          step.id
-        );
-
-      if(!object){
-        return;
-      }
-
-      const screenY=
-        worldToScreenY(
-          object.y
-        );
-
-      const paddingX=14;
-      const paddingY=18;
-
-      const holeX=
-        clamp(
-          object.x-paddingX,
-          0,
-          WORLD.width
-        );
-
-      const holeY=
-        clamp(
-          screenY-paddingY,
-          0,
-          WORLD.height
-        );
-
-      const holeW=
-        Math.min(
-          WORLD.width-holeX,
-          object.w+
-            paddingX*2
-        );
-
-      const holeH=
-        object.h+
-        paddingY*2;
-
-
-      ctx.save();
-
-      // 전체 화면은 어둡게
-      ctx.fillStyle=
-        'rgba(28,32,37,.70)';
-
-      ctx.fillRect(
-        0,
-        0,
-        WORLD.width,
-        WORLD.height
-      );
-
-      // 설명 중인 벽은 다시 선명하게 그림
-      if(step.type==='wall'){
-        drawWall(
-          object,
-          screenY
-        );
-      }
-
-      else if(
-        step.type==='deathwall'
-      ){
-        drawDeathWall(
-          object,
-          screenY
-        );
-      }
-
-      else if(
-        step.type==='jumpwall'
-      ){
-        drawBoost(
-          object,
-          screenY
-        );
-      }
-
-
-      ctx.strokeStyle=
-        step.type==='deathwall'
-          ?'rgba(255,121,100,.95)'
-          :step.type==='jumpwall'
-          ?'rgba(130,199,255,.95)'
-          :'rgba(255,255,255,.90)';
-
-      ctx.lineWidth=1.5;
-
-      roundedRectPath(
-        ctx,
-        holeX,
-        holeY,
-        holeW,
-        holeH,
-        8
-      );
-
-      ctx.stroke();
-
-
-      const visibleHeight=
-        Math.min(
-          WORLD.height,
-          viewport.visibleLogicalHeight
-        );
-
-      const cardW=
-        WORLD.width-56;
-
-      const cardH=
-        step.type==='jumpwall'
-          ?150
-          :136;
-
-      const cardX=28;
-
-      const cardY=
-        clamp(
-          visibleHeight-
-            cardH-
-            52,
-          385,
-          590
-        );
-
-      drawRoundedRect(
-        cardX,
-        cardY,
-        cardW,
-        cardH,
-        18,
-        'rgba(22,26,31,.95)',
-        'rgba(255,255,255,.13)',
-        1
-      );
-
-
-      ctx.textAlign='left';
-      ctx.textBaseline='top';
-
-      ctx.fillStyle=
-        step.type==='deathwall'
-          ?'#FF7964'
-          :step.type==='jumpwall'
-          ?'#82C7FF'
-          :'#FFFFFF';
-
-      ctx.font=
-        '760 16px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        step.title,
-        cardX+20,
-        cardY+18
-      );
-
-
-      ctx.fillStyle=
-        'rgba(247,248,250,.79)';
-
-      ctx.font=
-        '600 10px ui-sans-serif, sans-serif';
-
-      step.description.forEach(
-        (line,index)=>{
-          ctx.fillText(
-            line,
-            cardX+20,
-            cardY+51+
-              index*18
-          );
-        }
-      );
-
-
-      ctx.fillStyle=
-        'rgba(247,248,250,.48)';
-
-      ctx.font=
-        '650 8.5px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        '진행하려면 선을 그으시오',
-        cardX+20,
-        cardY+
-          cardH-
-          24
-      );
-
-      ctx.restore();
-
-
-      if(
-        input.drawing &&
-        input.start &&
-        input.end
-      ){
-        drawPlayerLine(
-          {
-            a:input.start,
-            b:input.end
-          },
-          1,
-          true
-        );
-      }
+      return;
     }
 
 
@@ -7971,287 +7651,29 @@
 
 
     function drawTutorialHomeGuideOverlay(){
-
-      if(
-        game.screen!=='menu'
-      ){
-        return;
-      }
-
-
-      const step=
-        currentHomeTutorialGuideStep();
-
-      if(!step){
-        return;
-      }
-
-
-      const navY=
-        homeNavigationY();
-
-      /*
-        홈 네비 아이콘 + 글자를 한 원 안에 잡는다.
-      */
-      const holeX=
-        step.centerX;
-
-      const holeY=
-        navY-10;
-
-      const holeRadius=48;
-
-
-      ctx.save();
-
-
-      // ------------------------------------------------------
-      // 전체 화면 반투명 회색
-      // 현재 설명 중인 메뉴 부분만 원형으로 뚫는다.
-      // ------------------------------------------------------
-
-      ctx.fillStyle=
-        'rgba(66,70,75,.70)';
-
-      ctx.beginPath();
-
-      ctx.rect(
-        0,
-        0,
-        WORLD.width,
-        WORLD.height
-      );
-
-      ctx.arc(
-        holeX,
-        holeY,
-        holeRadius,
-        0,
-        Math.PI*2
-      );
-
-      ctx.fill(
-        'evenodd'
-      );
-
-
-      // ------------------------------------------------------
-      // 강조 원 바깥쪽 BLUE glow
-      // ------------------------------------------------------
-
-      const pulse=
-        .5+
-        .5*
-        Math.sin(
-          game.uiTime*4
-        );
-
-      ctx.shadowColor=
-        'rgba(130,199,255,.72)';
-
-      ctx.shadowBlur=
-        8+
-        pulse*7;
-
-      ctx.strokeStyle=
-        'rgba(130,199,255,.95)';
-
-      ctx.lineWidth=3;
-
-      ctx.beginPath();
-
-      ctx.arc(
-        holeX,
-        holeY,
-        holeRadius,
-        0,
-        Math.PI*2
-      );
-
-      ctx.stroke();
-
-
-      // ------------------------------------------------------
-      // 안쪽 WHITE ring
-      // ------------------------------------------------------
-
-      ctx.shadowBlur=0;
-
-      ctx.strokeStyle=
-        'rgba(255,255,255,.92)';
-
-      ctx.lineWidth=1.4;
-
-      ctx.beginPath();
-
-      ctx.arc(
-        holeX,
-        holeY,
-        holeRadius-5,
-        0,
-        Math.PI*2
-      );
-
-      ctx.stroke();
-
-
-      // ------------------------------------------------------
-      // 설명 카드
-      // ------------------------------------------------------
-
-      const cardW=
-        WORLD.width-48;
-
-      const cardH=142;
-
-      const cardX=24;
-
-      const cardY=
-        clamp(
-          navY-258,
-          330,
-          535
-        );
-
-
-      drawRoundedRect(
-        cardX,
-        cardY,
-        cardW,
-        cardH,
-        18,
-        'rgba(25,29,34,.94)',
-        'rgba(255,255,255,.14)',
-        1
-      );
-
-
-      // 단계 표시
-      ctx.textAlign='left';
-      ctx.textBaseline='top';
-
-      ctx.fillStyle=
-        '#82C7FF';
-
-      ctx.font=
-        '700 8px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        `${(firstRunTutorial.homeGuideIndex||0)+1} / ${HOME_TUTORIAL_GUIDE_STEPS.length}`,
-        cardX+20,
-        cardY+17
-      );
-
-
-      // 제목
-      ctx.fillStyle=
-        '#FFFFFF';
-
-      ctx.font=
-        '780 17px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        step.title,
-        cardX+20,
-        cardY+34
-      );
-
-
-      // 설명
-      ctx.fillStyle=
-        'rgba(247,248,250,.78)';
-
-      ctx.font=
-        '600 9.5px ui-sans-serif, sans-serif';
-
-      step.description.forEach(
-        (line,index)=>{
-          ctx.fillText(
-            line,
-            cardX+20,
-            cardY+67+
-              index*17
-          );
-        }
-      );
-
-
-      // 다음 안내
-      ctx.textAlign='right';
-
-      ctx.fillStyle=
-        'rgba(247,248,250,.48)';
-
-      ctx.font=
-        '650 8px ui-sans-serif, sans-serif';
-
-      ctx.fillText(
-        firstRunTutorial.homeGuideIndex>=
-          HOME_TUTORIAL_GUIDE_STEPS.length-1
-            ? '클릭하여 튜토리얼 완료'
-            : '클릭하여 다음',
-        cardX+cardW-20,
-        cardY+cardH-21
-      );
-
-
-      ctx.restore();
-
-
-      canvas.setAttribute(
-        'data-tutorial-home-guide',
-        step.id
-      );
+      return;
     }
 
 
     function drawFirstRunTutorialOverlay(){
 
-      if(
-        firstRunTutorial.state==='homeGuide'
-      ){
-        drawTutorialHomeGuideOverlay();
-        return;
-      }
+      /*
+        LEGACY TUTORIAL VISUALS DISABLED
+
+        예전 튜토리얼에서 남기는 것은
+        오직 HOME의
+        "로고의 원 밑에 선을 그어
+         떨어지는 원을 튕겨보세요"
+        화면뿐이다.
+
+        벽 설명 / 페이드 / HOME GUIDE 등은
+        새 tutorial 시스템만 렌더링한다.
+      */
 
       if(
-        firstRunTutorial.state==='intro'
-      ){
-        drawTutorialIntroOverlay();
-      }
-
-      else if(
-        firstRunTutorial.state===
-          'homePrompt'
+        firstRunTutorial.state==='homePrompt'
       ){
         drawTutorialHomePrompt();
-      }
-
-      else if(
-        firstRunTutorial.state==='pause'
-      ){
-        drawTutorialPauseOverlay();
-      }
-
-      else if(
-        firstRunTutorial.state==='finish' ||
-        firstRunTutorial.state==='returning'
-      ){
-        ctx.save();
-
-        ctx.fillStyle=
-          `rgba(20,23,28,${
-            firstRunTutorial.fade
-          })`;
-
-        ctx.fillRect(
-          0,
-          0,
-          WORLD.width,
-          WORLD.height
-        );
-
-        ctx.restore();
       }
     }
 
@@ -8263,6 +7685,12 @@
     canvas.addEventListener(
       'pointerdown',
       event=>{
+
+        /*
+          Legacy HOME guide input disabled.
+          새 tutorial 시스템만 입력을 처리한다.
+        */
+        return;
 
         if(
           firstRunTutorial.state!=='homeGuide'
