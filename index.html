@@ -808,75 +808,119 @@
     }
 
     function updateFirstInfiniteHint(dt){
-
       if(
         !firstInfiniteHint.active
       ){
         return;
       }
 
+
       if(
         firstInfiniteHint.disappearing
       ){
-
-        firstInfiniteHint.alpha =
+        firstInfiniteHint.alpha=
           Math.max(
             0,
-            firstInfiniteHint.alpha -
-            dt * 3.8
+            firstInfiniteHint.alpha-
+            dt*6.5
           );
+
 
         if(
           firstInfiniteHint.alpha<=0
         ){
           firstInfiniteHint.active=false;
           firstInfiniteHint.alpha=0;
+
+          canvas.removeAttribute(
+            'data-first-infinite-hint'
+          );
         }
       }
     }
 
-    function drawFirstInfiniteHint(){
 
+    function drawFirstInfiniteHint(){
       if(
         !firstInfiniteHint.active ||
-        game.gameMode!=='infinite' ||
-        game.screen!=='playing'
+        game.gameMode!=='infinite'
       ){
         return;
       }
 
+
+      const beforeStart=
+        game.screen==='menu' &&
+        game.phase==='homeIdle';
+
+      const starting=
+        game.screen==='playing' &&
+        game.phase==='homeStarting';
+
+
+      /*
+        일반 플레이 상태에서는 절대 표시하지 않는다.
+      */
+      if(
+        !beforeStart &&
+        !starting
+      ){
+        return;
+      }
+
+
       ctx.save();
 
-      ctx.globalAlpha =
+
+      ctx.globalAlpha=
         firstInfiniteHint.alpha;
+
 
       ctx.textAlign='center';
       ctx.textBaseline='middle';
 
+
       ctx.fillStyle='#FFFFFF';
 
       ctx.shadowColor=
-        'rgba(18,42,65,.32)';
+        'rgba(18,42,65,.30)';
 
       ctx.shadowBlur=5;
 
-      ctx.font=
-        '750 15px ui-sans-serif, sans-serif';
 
+      ctx.font=
+        '750 13px ui-sans-serif, sans-serif';
+
+
+      /*
+        HOME 로고 아래에 표시.
+        플레이 화면 중앙에는 더 이상 표시되지 않음.
+      */
       ctx.fillText(
         '로고의 원 밑에 선을 그어',
         WORLD.width/2,
-        590
+        320
       );
+
 
       ctx.fillText(
         '떨어지는 원을 튕겨보세요',
         WORLD.width/2,
-        614
+        344
       );
 
+
       ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-first-infinite-hint',
+        beforeStart
+          ?'before-start'
+          :'fading-out'
+      );
     }
+
 
 
     const game={ screen:'menu',phase:'homeIdle',gameMode:'infinite',currentCity:'seoul',currentStageIndex:0,currentStage:null,score:0,combo:1,best:loadBestScore(),elapsed:0,resultTime:0,transitionTimer:0,homeTransition:0,homeTransitionDuration:HOME_LAYOUT.transitionDuration,homeLaunch:false,skinTab:'balls',activeLine:null,lineSerial:0,tutorialAlpha:1,hasEverDrawn:false,lineDrawnThisRun:false,unlockedNotices:new Set(),resultStars:0,uiTime:0,menuEnteredAt:0,lastDeathReason:'FALL',selfTests:null,altitude:0,displayAltitude:0,highestCameraY:0,totalClimbDistance:0,infinitePhase:'sky',phaseAdvanceCooldown:0,previewHideHud:false };
@@ -1747,12 +1791,63 @@
         `infinite:${selectedInfiniteMap()}`;
 
       setupInfiniteWorld();
-
-      showFirstInfiniteHint();
     }
-    function prepareHomeIdle(){game.gameMode='infinite';game.currentStage=null;resetRuntime();game.screen='menu';game.phase='homeIdle';game.menuEnteredAt=game.uiTime;ball.x=WORLD.width/2;ball.y=HOME_LAYOUT.logoY;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=0;ball.vy=0;worldState.theme=`infinite:${selectedInfiniteMap()}`;setupInfiniteWorld();canvas.setAttribute('data-home-state','HOME_IDLE');}
+
+    function prepareHomeIdle(){
+      game.gameMode='infinite';
+      game.currentStage=null;
+
+      resetRuntime();
+
+      game.screen='menu';
+      game.phase='homeIdle';
+
+      game.menuEnteredAt=
+        game.uiTime;
+
+
+      ball.x=
+        WORLD.width/2;
+
+      ball.y=
+        HOME_LAYOUT.logoY;
+
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
+
+      ball.vx=0;
+      ball.vy=0;
+
+
+      worldState.theme=
+        `infinite:${selectedInfiniteMap()}`;
+
+      setupInfiniteWorld();
+
+
+      canvas.setAttribute(
+        'data-home-state',
+        'HOME_IDLE'
+      );
+
+
+      /*
+        FIRST VISIT tutorial 설명 중에는
+        별도의 Infinite 안내를 겹쳐 띄우지 않는다.
+      */
+      if(
+        !tutorial.active
+      ){
+        showFirstInfiniteHint();
+      }
+    }
+
     function launchInfiniteFromHome(){
       game.screen='playing';
+
       game.phase='homeStarting';
 
       game.homeLaunch=true;
@@ -1765,26 +1860,31 @@
 
       game.tutorialAlpha=0;
 
-      ball.previousX=ball.x;
-      ball.previousY=ball.y;
+
+      ball.previousX=
+        ball.x;
+
+      ball.previousY=
+        ball.y;
 
       ball.vx=0;
       ball.vy=0;
+
 
       canvas.setAttribute(
         'data-home-state',
         'STARTING'
       );
 
+
       /*
-        최초 무한모드 플레이 때만:
-        로고의 원 밑에 선을 그어
-        떨어지는 원을 튕겨보세요
+        여기서는 안내를 새로 만들지 않는다.
+        commitCurrentDrawing()에서 이미 fade 시작됨.
       */
-      showFirstInfiniteHint();
 
       audio.ui();
     }
+
     function startStage(cityId,index){ const stage=STAGES[cityId]&&STAGES[cityId][index];if(!stage)return;audio.ui();game.gameMode='stage';game.currentCity=cityId;game.currentStageIndex=index;game.currentStage=stage;game.screen='playing';resetRuntime();ball.vx=Number.isFinite(stage.startVx)?stage.startVx:22;setupStageWorld(stage); }
     function retryCurrentRun(){ audio.retry(); if(game.gameMode==='infinite')startInfinite(); else startStage(game.currentCity,game.currentStageIndex); }
 
@@ -4896,7 +4996,7 @@
           '690 12px ui-sans-serif, sans-serif';
 
         ctx.fillText(
-          '아래에서 스와이프해 선을 그리고',
+          '로고의 원 밑에 선을 그어',
           WORLD.width/2,
           414
         );
@@ -4980,7 +5080,7 @@
             '690 12px ui-sans-serif, sans-serif';
 
           ctx.fillText(
-            '아래에서 스와이프해 선을 그리고',
+            '로고의 원 밑에 선을 그어',
             WORLD.width/2,
             414
           );
@@ -5087,91 +5187,140 @@
         return;
       }
 
+
       const navY=
         homeNavigationY();
 
+
       let cx=70;
-      let title='WORLD TOUR';
+
+      let title=
+        'WORLD TOUR';
+
       let body=
         '도시별 스테이지를 하나씩\n클리어하는 모드입니다.';
 
+
       if(
-        tutorial.step===
-        'homeSkins'
+        tutorial.step==='homeSkins'
       ){
         cx=195;
+
         title='SKINS';
+
         body=
           '공 색상과 트레일,\n무한 모드 시작 맵을 바꿀 수 있습니다.';
       }
 
-      if(
-        tutorial.step===
-        'homeAchievements'
+
+      else if(
+        tutorial.step==='homeAchievements'
       ){
         cx=320;
+
         title='ACHIEVEMENTS';
+
         body=
           '도시 클리어와 기록 달성으로\n특별한 배지를 얻을 수 있습니다.';
       }
 
+
+      /*
+        아이콘 + 라벨까지 전부 들어오게
+        focus 영역을 조금 크게 잡음.
+      */
+      const focusX=
+        cx;
+
+      const focusY=
+        navY-6;
+
+      const focusRadius=
+        52;
+
+
       ctx.save();
 
-      ctx.fillStyle=
-        'rgba(30,33,37,.70)';
 
-      ctx.fillRect(
+      // ======================================================
+      // DIM
+      //
+      // destination-out 사용 금지.
+      // 기존 아이콘 픽셀을 지우지 않고
+      // overlay 자체에 구멍만 만든다.
+      // ======================================================
+
+      ctx.fillStyle=
+        'rgba(30,33,37,.69)';
+
+
+      ctx.beginPath();
+
+      ctx.rect(
         0,
         0,
         WORLD.width,
         WORLD.height
       );
 
-      /*
-        해당 메뉴 부분만 원형으로 밝게 보이게.
-      */
-      ctx.globalCompositeOperation=
-        'destination-out';
 
-      ctx.beginPath();
+      ctx.moveTo(
+        focusX+
+        focusRadius,
+        focusY
+      );
 
       ctx.arc(
-        cx,
-        navY-9,
-        48,
+        focusX,
+        focusY,
+        focusRadius,
         0,
         Math.PI*2
       );
 
-      ctx.fill();
 
-      ctx.globalCompositeOperation=
-        'source-over';
+      ctx.fill(
+        'evenodd'
+      );
+
+
+      // ======================================================
+      // FOCUS RING
+      //
+      // 아이콘 자체에는 아무 색도 덮지 않는다.
+      // ======================================================
 
       ctx.strokeStyle=
-        'rgba(255,255,255,.95)';
+        'rgba(255,255,255,.78)';
 
-      ctx.lineWidth=2;
+      ctx.lineWidth=1.5;
 
       ctx.beginPath();
 
       ctx.arc(
-        cx,
-        navY-9,
-        49,
+        focusX,
+        focusY,
+        focusRadius,
         0,
         Math.PI*2
       );
 
       ctx.stroke();
 
+
+      // ======================================================
+      // DESCRIPTION
+      // ======================================================
+
       ctx.textAlign='center';
       ctx.textBaseline='middle';
+
 
       ctx.fillStyle='#FFFFFF';
 
       ctx.font=
         '780 17px ui-sans-serif, sans-serif';
+
 
       ctx.fillText(
         title,
@@ -5179,11 +5328,13 @@
         316
       );
 
+
       ctx.fillStyle=
         'rgba(255,255,255,.84)';
 
       ctx.font=
         '620 11px ui-sans-serif, sans-serif';
+
 
       body
         .split('\n')
@@ -5198,23 +5349,33 @@
           }
         );
 
+
       ctx.fillStyle=
         'rgba(255,255,255,.52)';
 
       ctx.font=
         '600 9px ui-sans-serif, sans-serif';
 
+
       ctx.fillText(
         tutorial.step===
-        'homeAchievements'
-          ? '화면을 터치해 튜토리얼 완료'
-          : '화면을 터치해 계속',
+          'homeAchievements'
+          ?'화면을 터치해 튜토리얼 완료'
+          :'화면을 터치해 계속',
         WORLD.width/2,
         406
       );
 
+
       ctx.restore();
+
+
+      canvas.setAttribute(
+        'data-home-guide-icon-color',
+        'original'
+      );
     }
+
 
 
     function updateTutorialFade(dt){
