@@ -319,6 +319,7 @@
       {id:'baseball',type:'ball',name:'Baseball',rarity:'RARE',price:10,style:'baseball',bundle:'chalk'},
       {id:'billiard',type:'ball',name:'Billiard 8 Ball',rarity:'EPIC',price:16,style:'billiard',bundle:'felt'},
       {id:'miracle',type:'ball',name:'Miracle Ball',rarity:'SPECIAL',price:null,style:'miracle',unlock:{type:'achievement',id:'miracle_on_han_river'}},
+      ...SKIN_SWATCHES.slice(1).map(swatch=>({id:swatch.id,type:'ball',name:`${swatch.name} Ball`,rarity:'COMMON',price:0,style:'classic',shopVisible:false})),
       {id:'default',type:'line',name:'White Line',rarity:'COMMON',price:0,style:'default',perfectEffect:'default'},
       {id:'grass',type:'line',name:'Grass Line',rarity:'COMMON',price:5,style:'grass'},
       {id:'court',type:'line',name:'Court Line',rarity:'RARE',price:10,style:'court'},
@@ -740,22 +741,25 @@
     function safeGet(key,fallback) { try { const value=localStorage.getItem(key); return value===null?fallback:value; } catch(error){ return fallback; } }
     function safeSet(key,value) { try { localStorage.setItem(key,value); } catch(error){} }
     function loadBestScore(){ const value=Number.parseInt(safeGet('bounce_best','0'),10); return Number.isFinite(value)&&value>0?value:0; }
-    function normalizeProgress(value){
-      const fallback={unlocked:{seoul:1,newyork:0,tokyo:0,paris:0,dubai:0,singapore:0},stars:{},completed:{},achievements:{},shards:3,unlockedBallSkins:['default','soccer'],unlockedLineSkins:['default'],equippedBallSkin:'default',equippedLineSkin:'default'};
+    function normalizeProgress(value,legacyBallSkin='white'){
+      const classicBallIds=SKIN_SWATCHES.slice(1).map(swatch=>swatch.id);
+      const migratedBallSkin=classicBallIds.includes(legacyBallSkin)?legacyBallSkin:'default';
+      const fallback={unlocked:{seoul:1,newyork:0,tokyo:0,paris:0,dubai:0,singapore:0},stars:{},completed:{},achievements:{},shards:3,unlockedBallSkins:['default','soccer',...classicBallIds],unlockedLineSkins:['default'],equippedBallSkin:migratedBallSkin,equippedLineSkin:'default'};
       if(!value||typeof value!=='object')return fallback;
       const stars=value.stars&&typeof value.stars==='object'?{...value.stars}:{},completed=value.completed&&typeof value.completed==='object'?{...value.completed}:{},achievements=value.achievements&&typeof value.achievements==='object'?{...value.achievements}:{};
       for(const[stageId,starCount]of Object.entries(stars))if(Number(starCount)>0)completed[stageId]=true;
       const unlocked={...fallback.unlocked,...(value.unlocked||{})},seoulComplete=Array.from({length:10},(_,index)=>`SEOUL_${String(index+1).padStart(2,'0')}`).every(stageId=>Boolean(completed[stageId])),newYorkComplete=Array.from({length:10},(_,index)=>`NEWYORK_${String(index+1).padStart(2,'0')}`).every(stageId=>Boolean(completed[stageId]));if(seoulComplete)unlocked.newyork=Math.max(1,unlocked.newyork||0);if(newYorkComplete)unlocked.tokyo=Math.max(1,unlocked.tokyo||0);
        const validIds=type=>new Set(SHOP_ITEMS.filter(item=>item.type===type).map(item=>item.id));
        const balls=validIds('ball'),lines=validIds('line');
-       const unlockedBallSkins=[...new Set(['default',...(Array.isArray(value.unlockedBallSkins)?value.unlockedBallSkins:['soccer']).filter(id=>balls.has(id))])];
+       const unlockedBallSkins=[...new Set(['default',...classicBallIds,...(Array.isArray(value.unlockedBallSkins)?value.unlockedBallSkins:['soccer']).filter(id=>balls.has(id))])];
        const unlockedLineSkins=[...new Set(['default',...(Array.isArray(value.unlockedLineSkins)?value.unlockedLineSkins:[]).filter(id=>lines.has(id))])];
-       const equippedBallSkin=unlockedBallSkins.includes(value.equippedBallSkin)?value.equippedBallSkin:'default';
+       const equippedBallSkin=unlockedBallSkins.includes(value.equippedBallSkin)?value.equippedBallSkin:migratedBallSkin;
        const equippedLineSkin=unlockedLineSkins.includes(value.equippedLineSkin)?value.equippedLineSkin:'default';
        return{unlocked,stars,completed,achievements,shards:Number.isFinite(value.shards)?Math.max(0,Math.floor(value.shards)):3,unlockedBallSkins,unlockedLineSkins,equippedBallSkin,equippedLineSkin};
     }
     function loadProgress(){
-      try{return normalizeProgress(JSON.parse(safeGet('bounce_world_progress','null')));}catch(error){return normalizeProgress(null);}
+      const legacyBallSkin=safeGet('bounce_ball_skin','white');
+      try{return normalizeProgress(JSON.parse(safeGet('bounce_world_progress','null')),legacyBallSkin);}catch(error){return normalizeProgress(null,legacyBallSkin);}
     }
     function saveProgress(){safeSet('bounce_world_progress',JSON.stringify(progress));}
 
@@ -1096,7 +1100,7 @@
     }
     function completeGuidedTutorial(){
       tutorialSaveComplete();tutorialResetRuntime();safeSet(FIRST_INFINITE_HINT_KEY,'1');firstInfiniteHint.active=false;worldState.generatedTopY=0;worldState.theme=`infinite:${selectedInfiniteMap()}`;
-      game.previewHideHud=false;game.phase='playing';game.screen='playing';game.elapsed=0;game.lineDrawnThisRun=true;
+      game.previewHideHud=false;game.phase='playing';game.screen='playing';game.elapsed=0;game.score=0;game.combo=1;game.altitude=0;game.displayAltitude=0;game.highestCameraY=0;game.totalClimbDistance=0;game.infinitePhase='sky';game.phaseAdvanceCooldown=0;game.lineDrawnThisRun=true;resetMetrics();
       setupInfiniteWorld();showBanner('NICE! KEEP RISING',COLORS.accent);
     }
     function onGuidedBounce(line){
@@ -3921,7 +3925,7 @@
     function drawSkinBall(id,x,y,r){
       ctx.save();ctx.translate(x,y);ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.clip();
       const fills={default:'#FFFFFF',soccer:'#F8FBFD',basketball:'#DC8B4D',baseball:'#FCF8F0',billiard:'#202D3B',miracle:'#83C9F4'};
-      ctx.fillStyle=fills[id]||fills.default;ctx.fillRect(-r,-r,r*2,r*2);
+      ctx.fillStyle=fills[id]||(validSkinId(id)?skinColor(id):fills.default);ctx.fillRect(-r,-r,r*2,r*2);
       if(id==='soccer'){ctx.fillStyle='#263747';for(const [px,py,scale] of [[0,0,.38],[-.78,-.65,.33],[.8,-.55,.33],[-.55,.8,.33],[.7,.76,.33]]){ctx.beginPath();for(let i=0;i<5;i++){const a=-Math.PI/2+i*Math.PI*2/5,vx=px*r+Math.cos(a)*r*scale,vy=py*r+Math.sin(a)*r*scale;i?ctx.lineTo(vx,vy):ctx.moveTo(vx,vy);}ctx.closePath();ctx.fill();}}
       if(id==='basketball'){ctx.strokeStyle='#693F31';ctx.lineWidth=Math.max(1,r*.11);ctx.beginPath();ctx.moveTo(-r,0);ctx.lineTo(r,0);ctx.moveTo(0,-r);ctx.lineTo(0,r);ctx.moveTo(-r*.7,-r);ctx.quadraticCurveTo(r*.45,0,-r*.7,r);ctx.moveTo(r*.7,-r);ctx.quadraticCurveTo(-r*.45,0,r*.7,r);ctx.stroke();}
       if(id==='baseball'){ctx.strokeStyle='#C46161';ctx.lineWidth=Math.max(1,r*.08);for(const side of [-1,1]){ctx.beginPath();ctx.moveTo(side*r*.55,-r);ctx.quadraticCurveTo(-side*r*.12,0,side*r*.55,r);ctx.stroke();for(let i=-2;i<=2;i++){const yy=i*r*.32,xx=side*(r*.16+Math.abs(i)*r*.055);ctx.beginPath();ctx.moveTo(xx-side*r*.15,yy-r*.08);ctx.lineTo(xx+side*r*.12,yy+r*.08);ctx.stroke();}}}
@@ -6768,7 +6772,7 @@
       if(enabled)registerHitArea(x,y,w,h,action);
     }
     function drawCatalogGrid(type,shopMode){
-      const items=SHOP_ITEMS.filter(item=>item.type===type),perPage=viewport.visibleLogicalHeight<770?4:6,pages=Math.ceil(items.length/perPage);game.catalogPage=Math.min(game.catalogPage,pages-1);
+      const items=SHOP_ITEMS.filter(item=>item.type===type&&(!shopMode||item.shopVisible!==false)),perPage=viewport.visibleLogicalHeight<770?4:6,pages=Math.ceil(items.length/perPage);game.catalogPage=Math.min(game.catalogPage,pages-1);
       items.slice(game.catalogPage*perPage,game.catalogPage*perPage+perPage).forEach((item,index)=>drawCatalogCard(item,index,shopMode));
       if(pages>1){const y=Math.min(748,viewport.visibleLogicalHeight-54);drawRoundedRect(120,y,150,36,18,'rgba(255,255,255,.08)');ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#D5E9F8';ctx.font='700 10px ui-sans-serif, sans-serif';ctx.fillText(`‹      ${game.catalogPage+1} / ${pages}      ›`,195,y+18);if(game.catalogPage>0)registerHitArea(120,y,55,40,`catalogPage:${game.catalogPage-1}`);if(game.catalogPage<pages-1)registerHitArea(215,y,55,40,`catalogPage:${game.catalogPage+1}`);}
     }
@@ -7553,6 +7557,7 @@
     }
     game.selfTests={...runCollisionSelfTests(),skinPaletteValid:SHOP_ITEMS.filter(item=>item.type==='ball').some(item=>item.id===appearance.ball)&&SHOP_ITEMS.filter(item=>item.type==='line').some(item=>item.id===appearance.line),shopCatalogUnique:new Set(SHOP_ITEMS.map(item=>`${item.type}:${item.id}`)).size===SHOP_ITEMS.length,saveMigration:normalizeProgress({stars:{SEOUL_01:3}}).equippedBallSkin==='default'&&normalizeProgress({stars:{SEOUL_01:3}}).unlockedLineSkins.includes('default'),purchaseBundle:(()=>{const result=purchaseSkinState({shards:10,unlockedBallSkins:['default'],unlockedLineSkins:['default'],equippedBallSkin:'default',equippedLineSkin:'default'},shopItem('ball','soccer'));return result.shards===5&&result.unlockedBallSkins.includes('soccer')&&result.unlockedLineSkins.includes('grass')&&result.equippedBallSkin==='soccer';})(),ballRadiusIncreased:ball.radius===10.5,increasedRadiusCollisions:Boolean(sweptBallLineCollision({x:195,y:80},{x:195,y:150},ball.radius,{a:{x:130,y:120},b:{x:260,y:120}},{vx:0,vy:500})&&sweptCircleRectCollision({x:195,y:80},{x:195,y:150},ball.radius,{x:130,y:120,w:130,h:16},{vx:0,vy:500})&&sweptPointCircleTime({x:0,y:100},{x:100,y:100},{x:50,y:100},27+ball.radius*.15)!==null&&isDeadlyObject({type:'deathwall'})),tutorialStepsValid:TUTORIAL_STEPS.length===3&&TUTORIAL_STEPS.every(step=>step.guideY>0&&step.guideY<WORLD.height)};
     game.selfTests.increasedRadiusObjects=Boolean(sweptObjectCollision({x:195,y:80},{x:195,y:150},ball.radius,{type:'jumpwall',x:130,y:120,w:130,h:16},{vx:0,vy:500})&&sweptObjectCollision({x:195,y:80},{x:195,y:150},ball.radius,{type:'deathwall',x:130,y:120,w:130,h:18},{vx:0,vy:500}));
+    game.selfTests.legacyBallMigration=normalizeProgress({stars:{SEOUL_01:3}},'mint').equippedBallSkin==='mint'&&normalizeProgress(null,'rose').equippedBallSkin==='rose'&&normalizeProgress({equippedBallSkin:'soccer',unlockedBallSkins:['default','soccer']},'mint').equippedBallSkin==='soccer'&&SHOP_ITEMS.filter(item=>item.style==='classic').every(item=>item.shopVisible===false);
     window.BOUNCE_SELF_TESTS=Object.freeze({...game.selfTests});canvas.setAttribute('data-self-tests',JSON.stringify(game.selfTests));
     function applyLocalPreviewQuery(){try{if(!['localhost','127.0.0.1'].includes(location.hostname))return;const params=new URLSearchParams(location.search),stageId=params.get('previewStage'),stageSelectCity=params.get('previewStageSelect'),infiniteValue=params.get('previewInfinite'),hideHud=params.get('hideHud')==='1';if(CITY_ORDER.includes(stageSelectCity)){game.currentCity=stageSelectCity;game.currentStage=null;game.gameMode='stage';game.screen='stageSelect';game.phase='preview';canvas.setAttribute('data-preview',`STAGE_SELECT_${stageSelectCity.toUpperCase()}`);return;}if(params.get('previewWorldSelect')==='1'){game.currentStage=null;game.gameMode=null;game.screen='worldSelect';game.phase='preview';canvas.setAttribute('data-preview','WORLD_SELECT');return;}if(params.get('previewAchievement')==='toast'){effects.achievementToast={definition:CITY_COMPLETION_ACHIEVEMENTS.seoul,life:3,maxLife:3};canvas.setAttribute('data-preview','ACHIEVEMENT_TOAST');}if(stageId){for(const cityId of CITY_ORDER){const index=STAGES[cityId].findIndex(stage=>stage.id===stageId);if(index<0)continue;startStage(cityId,index);const climb=Math.max(0,Number(params.get('previewCamera'))||0),wormholeTest=params.get('wormholeTest')==='1',liveMotion=params.get('previewLive')==='1',meteorPreview=params.get('previewMeteor');camera.y=-climb;camera.targetY=camera.y;ball.y=camera.y+520;ball.previousY=ball.y;game.previewHideHud=hideHud;if(params.get('previewCollectStar')==='1'&&worldState.stageStar)collectStageStar();if(meteorPreview&&worldState.stageMeteors.length){const schedule=worldState.stageMeteors[0];if(meteorPreview==='warning'){schedule.state='warning';schedule.warningElapsed=schedule.warningTime*.55;schedule.x=cityId==='tokyo'?(schedule.vx>0?12:WORLD.width-12):schedule.x;schedule.y=camera.y+90;}else if(meteorPreview==='active'){const object=spawnStageMeteor(schedule);if(object){object.x=92;object.y=camera.y+238;object.previousX=object.x-object.velocityX*.14;object.previousY=object.y-object.velocityY*.14;object.renderVX=object.velocityX;object.renderVY=object.velocityY;}}}if(wormholeTest&&worldState.wormholes.length){const entry=worldState.wormholes[0];ball.x=entry.x-62;ball.y=entry.y;ball.previousX=ball.x;ball.previousY=ball.y;ball.vx=620;ball.vy=0;game.lineDrawnThisRun=true;game.phase='playing';}else game.phase=liveMotion?'playing':'preview';canvas.setAttribute('data-preview',stageId);return;}}if(infiniteValue!==null){startInfinite();const climb=Math.max(0,Number(infiniteValue)||0),bounces=Math.max(0,Number(params.get('previewBounces'))||0);game.totalClimbDistance=climb;game.highestCameraY=-climb;game.altitude=altitudeFromClimb(climb);game.displayAltitude=game.altitude;metrics.successfulBounces=bounces;for(const phase of INFINITE_PHASES)if(canEnterInfinitePhase(phase,game.altitude,bounces))game.infinitePhase=phase.id;camera.y=-climb;camera.targetY=camera.y;ball.y=camera.y+520;ball.previousY=ball.y;if(params.get('satellite')==='1')createWorldObject({type:'satellite',x:139,y:camera.y+300,w:112,h:34,movePhase:0},null,true);game.previewHideHud=hideHud;game.phase='preview';canvas.setAttribute('data-preview',`INFINITE_${climb}`);}}catch(error){recordRuntimeError();}}
         // =========================================================================

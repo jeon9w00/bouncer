@@ -13,3 +13,5 @@ The first visit starts a three step tutorial: draw, tilt, bounce again. It conti
 Infinite awards one shard every three successful bounces, with additional collectible shards. The Shop in Skins spends these shards on ball and line skins. Ball and line equipment are independent; buying a sports ball also unlocks its matching line. Cosmetic styles do not change physics.
 
 `bounce_world_progress` in local storage keeps the existing World Tour fields and adds `shards`, `unlockedBallSkins`, `unlockedLineSkins`, `equippedBallSkin`, and `equippedLineSkin`. Missing fields are initialized safely for older saves. Tutorial completion uses `bouncer_tutorial_completed`.
+
+The previous `bounce_ball_skin` color choice is migrated into the free Classic Color ball skins. Existing trail colors remain saved under `bounce_trail_skin`.
