@@ -308,7 +308,7 @@
       maxClimbGainPerSecond:480, displaySharpness:2.4, transitionStart:.78, phaseCooldown:1.15
     });
     const SEOUL_SKY_OVERLAP = 4;
-    const HOME_LAYOUT = Object.freeze({ centerX:WORLD.width/2, logoY:190, navY:790, transitionDuration:.52 });
+    const HOME_LAYOUT = Object.freeze({ centerX:WORLD.width/2, logoY:190, navY:790, transitionDuration:.52, hintMaxCompletedRuns:5 });
     const SKIN_SWATCHES = Object.freeze([
       Object.freeze({id:'white',name:'PURE',color:'#f7f8fa'}),Object.freeze({id:'sky',name:'SKY',color:'#82c7ff'}),Object.freeze({id:'mint',name:'MINT',color:'#8de2c2'}),Object.freeze({id:'sun',name:'SUN',color:'#f4d58d'}),Object.freeze({id:'rose',name:'ROSE',color:'#f19baa'})
     ]);
@@ -744,10 +744,11 @@
     function normalizeProgress(value,legacyBallSkin='white'){
       const classicBallIds=SKIN_SWATCHES.slice(1).map(swatch=>swatch.id);
       const migratedBallSkin=classicBallIds.includes(legacyBallSkin)?legacyBallSkin:'default';
-      const fallback={unlocked:{seoul:1,newyork:0,tokyo:0,paris:0,dubai:0,singapore:0},stars:{},completed:{},achievements:{},shards:3,unlockedBallSkins:['default','soccer',...classicBallIds],unlockedLineSkins:['default'],equippedBallSkin:migratedBallSkin,equippedLineSkin:'default'};
+      const fallback={unlocked:{seoul:1,newyork:0,tokyo:0,paris:0,dubai:0,singapore:0},stars:{},completed:{},achievements:{},shards:3,completedRuns:loadBestScore()>0?1:0,unlockedBallSkins:['default','soccer',...classicBallIds],unlockedLineSkins:['default'],equippedBallSkin:migratedBallSkin,equippedLineSkin:'default'};
       if(!value||typeof value!=='object')return fallback;
       const stars=value.stars&&typeof value.stars==='object'?{...value.stars}:{},completed=value.completed&&typeof value.completed==='object'?{...value.completed}:{},achievements=value.achievements&&typeof value.achievements==='object'?{...value.achievements}:{};
       for(const[stageId,starCount]of Object.entries(stars))if(Number(starCount)>0)completed[stageId]=true;
+      const legacyCompletedRuns=Object.values(completed).filter(Boolean).length+(loadBestScore()>0?1:0);
       const unlocked={...fallback.unlocked,...(value.unlocked||{})},seoulComplete=Array.from({length:10},(_,index)=>`SEOUL_${String(index+1).padStart(2,'0')}`).every(stageId=>Boolean(completed[stageId])),newYorkComplete=Array.from({length:10},(_,index)=>`NEWYORK_${String(index+1).padStart(2,'0')}`).every(stageId=>Boolean(completed[stageId]));if(seoulComplete)unlocked.newyork=Math.max(1,unlocked.newyork||0);if(newYorkComplete)unlocked.tokyo=Math.max(1,unlocked.tokyo||0);
        const validIds=type=>new Set(SHOP_ITEMS.filter(item=>item.type===type).map(item=>item.id));
        const balls=validIds('ball'),lines=validIds('line');
@@ -755,13 +756,14 @@
        const unlockedLineSkins=[...new Set(['default',...(Array.isArray(value.unlockedLineSkins)?value.unlockedLineSkins:[]).filter(id=>lines.has(id))])];
        const equippedBallSkin=unlockedBallSkins.includes(value.equippedBallSkin)?value.equippedBallSkin:migratedBallSkin;
        const equippedLineSkin=unlockedLineSkins.includes(value.equippedLineSkin)?value.equippedLineSkin:'default';
-       return{unlocked,stars,completed,achievements,shards:Number.isFinite(value.shards)?Math.max(0,Math.floor(value.shards)):3,unlockedBallSkins,unlockedLineSkins,equippedBallSkin,equippedLineSkin};
+       return{unlocked,stars,completed,achievements,shards:Number.isFinite(value.shards)?Math.max(0,Math.floor(value.shards)):3,completedRuns:Number.isFinite(value.completedRuns)?Math.max(0,Math.floor(value.completedRuns)):legacyCompletedRuns,unlockedBallSkins,unlockedLineSkins,equippedBallSkin,equippedLineSkin};
     }
     function loadProgress(){
       const legacyBallSkin=safeGet('bounce_ball_skin','white');
       try{return normalizeProgress(JSON.parse(safeGet('bounce_world_progress','null')),legacyBallSkin);}catch(error){return normalizeProgress(null,legacyBallSkin);}
     }
     function saveProgress(){safeSet('bounce_world_progress',JSON.stringify(progress));}
+    function recordCompletedRun(){progress.completedRuns++;saveProgress();}
 
     // =========================================================================
     // Game state
@@ -3104,7 +3106,7 @@
       }
       if(game.currentStageIndex===STAGES[game.currentCity].length-1){const nextCity=CITY_ORDER[CITY_ORDER.indexOf(game.currentCity)+1];if(nextCity&&STAGES[nextCity].length){progress.unlocked[nextCity]=Math.max(progress.unlocked[nextCity]||0,1);unlockLabels.push(CITIES[nextCity].name);}}
       if(unlockLabels.length)showBanner(`${unlockLabels.join(' · ')} UNLOCKED`,COLORS.finish);
-      reconcileAchievements(true);saveProgress();
+      reconcileAchievements(true);recordCompletedRun();
     }
     function endRun(reason='FALL',x=ball.x,y=ball.y){
       if(tutorial.active){
@@ -3112,7 +3114,7 @@
         return;
       }
 
-      if(game.phase!=='playing')return;game.phase='dying';game.transitionTimer=.3;game.lastDeathReason=reason;game.activeLine=null;abortDrawing();addShake(5.2);spawnBurst(clamp(x,16,WORLD.width-16),y,20,isDeadlyReason(reason)?COLORS.danger:COLORS.softWhite,235,.5);audio.death();if(game.gameMode==='infinite'&&game.score>game.best){game.best=game.score;safeSet('bounce_best',String(game.best));reconcileAchievements(false);}}
+      if(game.phase!=='playing')return;recordCompletedRun();game.phase='dying';game.transitionTimer=.3;game.lastDeathReason=reason;game.activeLine=null;abortDrawing();addShake(5.2);spawnBurst(clamp(x,16,WORLD.width-16),y,20,isDeadlyReason(reason)?COLORS.danger:COLORS.softWhite,235,.5);audio.death();if(game.gameMode==='infinite'&&game.score>game.best){game.best=game.score;safeSet('bounce_best',String(game.best));reconcileAchievements(false);}}
     function openDeathResult(){game.phase='over';game.resultTime=0;game.screen=game.gameMode==='infinite'?'infiniteResult':'stageFailed';}
     function updatePhysics(dt){
       const homeStarting=game.phase==='homeStarting';if(game.phase!=='playing'&&game.phase!=='finishing'&&!homeStarting)return;const scale=game.phase==='finishing'?.18:1,step=dt*scale;game.elapsed+=step;if(!homeStarting)updateWorldObjects(step);ball.wormholeCooldown=Math.max(0,ball.wormholeCooldown-step);ball.previousX=ball.x;ball.previousY=ball.y;const homeProgress=homeStarting?1-game.homeTransition/Math.max(.001,game.homeTransitionDuration):1,homeGravity=homeStarting?lerp(.16,1,smoothstep(homeProgress)):1,grace=tutorial.active?(game.activeLine?.36:0):!game.lineDrawnThisRun&&game.elapsed<2.8?.3:1;ball.vy=Math.min(PHYSICS.maxFallSpeed,ball.vy+PHYSICS.gravity*grace*homeGravity*step);ball.x+=ball.vx*step;ball.y+=ball.vy*step;
@@ -5821,17 +5823,11 @@
       }
 
 
-      ctx.globalAlpha=alpha*.9;
-      drawSampleGuideLine(layout.ballX,223);
-      ctx.textAlign='center';
-      ctx.fillStyle='#F7FBFF';
-      ctx.font='780 18px ui-sans-serif, sans-serif';
-      ctx.fillText('DRAW A LINE',layout.ballX,258);
-
       ctx.globalAlpha=alpha*.76;
+      ctx.textAlign='center';
       ctx.fillStyle='#FFFFFF';
       ctx.font='650 8px ui-sans-serif, sans-serif';
-      ctx.fillText('RISE ABOVE, BOUNCE HIGHER',WORLD.width/2,289);
+      ctx.fillText('RISE ABOVE, BOUNCE HIGHER',WORLD.width/2,244);
 
 
       ctx.globalAlpha=
@@ -5843,7 +5839,7 @@
       ctx.fillText(
         `BEST ${game.best}`,
         WORLD.width/2,
-        314
+        269
       );
 
       ctx.restore();
@@ -5860,10 +5856,20 @@
       }
     }
 
+    function drawHomeDrawHint(alpha){
+      if(progress.completedRuns>HOME_LAYOUT.hintMaxCompletedRuns)return;
+      const y=clamp(viewport.visibleLogicalHeight*.62,465,540);
+      ctx.save();ctx.globalAlpha=alpha*.56;
+      drawSampleGuideLine(WORLD.width/2,y);
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#315D84';ctx.font='780 17px ui-sans-serif, sans-serif';
+      ctx.fillText('DRAW A LINE',WORLD.width/2,y+35);
+      ctx.restore();
+    }
+
     function homeNavigationY(){return Math.min(HOME_LAYOUT.navY,viewport.visibleLogicalHeight-42);}
     function drawHomeBottomNav(alpha,interactive=true){const items=[{label:'WORLD TOUR',icon:'globe',action:'worldTour'},{label:'SKINS',icon:'skins',action:'skin'},{label:'ACHIEVEMENTS',icon:'trophy',action:'achievements'}],centers=[70,195,320],y=homeNavigationY();items.forEach((item,index)=>{const cx=centers[index],hovered=input.hoverAction===item.action;ctx.save();ctx.globalAlpha=alpha*(hovered?1:.82);drawHomeIcon(item.icon,cx,y-18,21);ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#3E5874';ctx.font='680 7.5px ui-sans-serif, sans-serif';ctx.fillText(item.label,cx,y+9);ctx.restore();if(interactive)registerHitArea(cx-49,y-46,98,68,item.action);});}
-    function drawMainMenu(){drawMenuBackdrop();const elapsed=Math.max(0,game.uiTime-game.menuEnteredAt),logoAlpha=smoothstep(elapsed/.34),topAlpha=smoothstep(elapsed/.28);drawHomeTopBar(topAlpha,true);drawHomeLogo(logoAlpha,true);drawHomeBottomNav(smoothstep((elapsed-.12)/.3),true);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);canvas.setAttribute('data-home-menu-count','3');canvas.setAttribute('data-home-menu-style','bottom-navigation');canvas.setAttribute('data-home-prompt','removed');canvas.setAttribute('data-home-gradient-layer','css-only');}
-    function drawHomeTransitionOverlay(){const alpha=smoothstep(game.homeTransition/Math.max(.001,game.homeTransitionDuration));drawHomeTopBar(alpha,false);drawHomeLogo(alpha,false);drawHomeBottomNav(alpha,false);}
+    function drawMainMenu(){drawMenuBackdrop();const elapsed=Math.max(0,game.uiTime-game.menuEnteredAt),logoAlpha=smoothstep(elapsed/.34),topAlpha=smoothstep(elapsed/.28);drawHomeTopBar(topAlpha,true);drawHomeLogo(logoAlpha,true);drawHomeDrawHint(logoAlpha);drawHomeBottomNav(smoothstep((elapsed-.12)/.3),true);if(input.drawing&&input.start&&input.end)drawPlayerLine({a:input.start,b:input.end},.58,true);canvas.setAttribute('data-home-menu-count','3');canvas.setAttribute('data-home-menu-style','bottom-navigation');canvas.setAttribute('data-home-prompt','removed');canvas.setAttribute('data-home-gradient-layer','css-only');}
+    function drawHomeTransitionOverlay(){const alpha=smoothstep(game.homeTransition/Math.max(.001,game.homeTransitionDuration));drawHomeTopBar(alpha,false);drawHomeLogo(alpha,false);drawHomeDrawHint(alpha);drawHomeBottomNav(alpha,false);}
     function cityStars(cityId){return STAGES[cityId].reduce((sum,stage)=>sum+(progress.stars[stage.id]||0),0);}
 
     function drawWorldCityLockPreview(
